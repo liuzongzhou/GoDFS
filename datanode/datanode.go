@@ -19,13 +19,15 @@ type Service struct {
 }
 
 type DataNodePutRequest struct {
+	RemoteFilePath   string
 	BlockId          string
 	Data             string
 	ReplicationNodes []util.DataNodeInstance
 }
 
 type DataNodeGetRequest struct {
-	BlockId string
+	RemoteFilePath string
+	BlockId        string
 }
 
 type DataNodeWriteStatus struct {
@@ -77,8 +79,8 @@ func (dataNode *Service) forwardForReplication(request *DataNodePutRequest, repl
 	dataNodeInstance, rpcErr := rpc.Dial("tcp", startingDataNode.Host+":"+startingDataNode.ServicePort)
 	util.Check(rpcErr)
 	defer dataNodeInstance.Close()
-
 	payloadRequest := DataNodePutRequest{
+		RemoteFilePath:   request.RemoteFilePath,
 		BlockId:          blockId,
 		Data:             request.Data,
 		ReplicationNodes: remainingDataNodes,
@@ -90,7 +92,7 @@ func (dataNode *Service) forwardForReplication(request *DataNodePutRequest, repl
 }
 
 func (dataNode *Service) PutData(request *DataNodePutRequest, reply *DataNodeWriteStatus) error {
-	fileWriteHandler, err := os.Create(dataNode.DataDirectory + request.BlockId)
+	fileWriteHandler, err := os.Create(dataNode.DataDirectory + request.RemoteFilePath + request.BlockId)
 	util.Check(err)
 	defer fileWriteHandler.Close()
 
@@ -104,7 +106,7 @@ func (dataNode *Service) PutData(request *DataNodePutRequest, reply *DataNodeWri
 }
 
 func (dataNode *Service) GetData(request *DataNodeGetRequest, reply *DataNodeData) error {
-	dataBytes, err := ioutil.ReadFile(dataNode.DataDirectory + request.BlockId)
+	dataBytes, err := ioutil.ReadFile(dataNode.DataDirectory + request.RemoteFilePath + request.BlockId)
 	util.Check(err)
 
 	*reply = DataNodeData{Data: string(dataBytes)}

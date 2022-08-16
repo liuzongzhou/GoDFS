@@ -28,6 +28,7 @@ func main() {
 	clientSourcePathPtr := clientCommand.String("source-path", "", "Source path of the file")
 	clientFilenamePtr := clientCommand.String("filename", "", "File name")
 	clientRemotefilepath := clientCommand.String("remotefilepath", "", "Remote_file_path")
+	clientLocalfilepath := clientCommand.String("localfilepath", "", "Local_file_path")
 
 	if len(os.Args) < 2 {
 		log.Println("sub-command is required")
@@ -53,15 +54,13 @@ func main() {
 		_ = clientCommand.Parse(os.Args[2:])
 
 		if *clientOperationPtr == "put" {
-			status := client.PutHandler(*clientNameNodePortPtr, *clientSourcePathPtr, *clientFilenamePtr)
+			status := client.PutHandler(*clientNameNodePortPtr, *clientSourcePathPtr, *clientFilenamePtr, *clientRemotefilepath)
 			log.Printf("Put status: %t\n", status)
 
 		} else if *clientOperationPtr == "get" {
-			contents, status := client.GetHandler(*clientNameNodePortPtr, *clientFilenamePtr)
-			log.Printf("Get status: %t\n", status)
-			if status {
-				log.Println(contents)
-			}
+			getHandler := client.GetHandler(*clientNameNodePortPtr, *clientRemotefilepath, *clientFilenamePtr, *clientLocalfilepath)
+			log.Printf("Get status: %t\n", getHandler)
+
 		} else if *clientOperationPtr == "mkdir" {
 			mkdirHandler := client.MkdirHandler(*clientNameNodePortPtr, *clientRemotefilepath)
 			log.Println(mkdirHandler)

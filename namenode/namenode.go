@@ -93,7 +93,7 @@ func (nameNode *Service) ReadData(request *NameNodeReadRequest, reply *[]NameNod
 }
 
 func (nameNode *Service) WriteData(request *NameNodeWriteRequest, reply *[]NameNodeMetaData) error {
-	nameNode.FileNameToBlocks[request.FileName] = []string{} //不能理解
+	nameNode.FileNameToBlocks[request.FileName] = []string{}
 	//向上取整 需要分配的块数
 	numberOfBlocksToAllocate := uint64(math.Ceil(float64(request.FileSize) / float64(nameNode.BlockSize)))
 	*reply = nameNode.allocateBlocks(request.FileName, numberOfBlocksToAllocate)
@@ -188,7 +188,23 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 
 	// attempt re-replication of under-replicated blocks
 	for _, blockToReplicate := range underReplicatedBlocksList {
-
+		var remoteFilePath string
+		flag := false
+		for filename, fileblockIds := range nameNode.FileNameToBlocks {
+			for _, id := range fileblockIds {
+				if blockToReplicate.BlockId == id {
+					flag = true
+					break
+				}
+			}
+			if flag {
+				split := strings.Split(filename, "/")
+				for i := 0; i < len(split)-1; i++ {
+					remoteFilePath += split[i] + "/"
+				}
+				break
+			}
+		}
 		// fetch the data from the healthy DataNode
 		healthyDataNode := nameNode.IdToDataNodes[blockToReplicate.HealthyDataNodeId]
 		dataNodeInstance, rpcErr := rpc.Dial("tcp", healthyDataNode.Host+":"+healthyDataNode.ServicePort)
@@ -199,7 +215,8 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 		defer dataNodeInstance.Close()
 
 		getRequest := datanode.DataNodeGetRequest{
-			BlockId: blockToReplicate.BlockId,
+			RemoteFilePath: remoteFilePath,
+			BlockId:        blockToReplicate.BlockId,
 		}
 		var getReply datanode.DataNodeData
 
@@ -221,6 +238,7 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 		defer targetDataNodeInstance.Close()
 
 		putRequest := datanode.DataNodePutRequest{
+			RemoteFilePath:   remoteFilePath,
 			BlockId:          blockToReplicate.BlockId,
 			Data:             blockContents,
 			ReplicationNodes: remainingDataNodes,
