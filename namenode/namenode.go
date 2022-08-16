@@ -1,6 +1,7 @@
 package namenode
 
 import (
+	"errors"
 	"github.com/google/uuid"
 	"github.com/liuzongzhou/GoDFS/datanode"
 	"github.com/liuzongzhou/GoDFS/util"
@@ -19,6 +20,9 @@ type NameNodeMetaData struct {
 
 type NameNodeReadRequest struct {
 	FileName string
+}
+type NameNodeFileSize struct {
+	FileSize uint64
 }
 
 // NameNodeWriteRequest namenode写入请求
@@ -43,6 +47,7 @@ type Service struct {
 	IdToDataNodes      map[uint64]util.DataNodeInstance
 	FileNameToBlocks   map[string][]string
 	BlockToDataNodeIds map[string][]uint64
+	FileNameSize       map[string]uint64 //文件大小
 }
 
 func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *Service {
@@ -53,6 +58,7 @@ func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *
 		FileNameToBlocks:   make(map[string][]string),
 		IdToDataNodes:      make(map[uint64]util.DataNodeInstance),
 		BlockToDataNodeIds: make(map[string][]uint64),
+		FileNameSize:       make(map[string]uint64),
 	}
 }
 
@@ -91,10 +97,17 @@ func (nameNode *Service) ReadData(request *NameNodeReadRequest, reply *[]NameNod
 	}
 	return nil
 }
-
+func (nameNode *Service) FileSize(request *NameNodeReadRequest, reply *NameNodeFileSize) error {
+	if value, ok := nameNode.FileNameSize[request.FileName]; ok {
+		reply.FileSize = value // 存在
+		return nil
+	}
+	return errors.New("文件不存在")
+}
 func (nameNode *Service) WriteData(request *NameNodeWriteRequest, reply *[]NameNodeMetaData) error {
 	nameNode.FileNameToBlocks[request.FileName] = []string{}
 	//向上取整 需要分配的块数
+	nameNode.FileNameSize[request.FileName] = request.FileSize
 	numberOfBlocksToAllocate := uint64(math.Ceil(float64(request.FileSize) / float64(nameNode.BlockSize)))
 	*reply = nameNode.allocateBlocks(request.FileName, numberOfBlocksToAllocate)
 	return nil

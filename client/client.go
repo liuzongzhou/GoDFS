@@ -133,3 +133,16 @@ func Mkdir(nameNodeInstance *rpc.Client, remote_file_path string) (mkDir bool) {
 	}
 	return
 }
+
+func Stat(nameNodeInstance *rpc.Client, remote_file_path string, fileName string) (filename1 string, filesize uint64) {
+	request := namenode.NameNodeReadRequest{FileName: remote_file_path + fileName}
+	var reply namenode.NameNodeFileSize
+	err := nameNodeInstance.Call("Service.FileSize", request, &reply)
+	if err == nil {
+		filename1 = fileName
+		filesize = reply.FileSize
+		return
+	}
+	filename1 = ""
+	return
+}

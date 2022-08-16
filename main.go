@@ -64,6 +64,13 @@ func main() {
 		} else if *clientOperationPtr == "mkdir" {
 			mkdirHandler := client.MkdirHandler(*clientNameNodePortPtr, *clientRemotefilepath)
 			log.Println(mkdirHandler)
+		} else if *clientOperationPtr == "stat" {
+			filename, filesize := client.Stat(*clientNameNodePortPtr, *clientRemotefilepath, *clientFilenamePtr)
+			if filename == "" {
+				log.Printf("%v :文件不存在\n", *clientFilenamePtr)
+			} else {
+				log.Printf("文件名:%v\t文件大小:%v bytes\n", filename, filesize)
+			}
 		}
 	}
 }

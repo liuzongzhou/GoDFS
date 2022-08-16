@@ -36,3 +36,10 @@ func MkdirHandler(nameNodeAddress string, remote_file_path string) bool {
 	defer rpcClient.Close()
 	return client.Mkdir(rpcClient, remote_file_path)
 }
+
+func Stat(nameNodeAddress string, remote_file_path string, fileName string) (filename string, filesize uint64) {
+	rpcClient, err := initializeClientUtil(nameNodeAddress)
+	util.Check(err)
+	defer rpcClient.Close()
+	return client.Stat(rpcClient, remote_file_path, fileName)
+}
