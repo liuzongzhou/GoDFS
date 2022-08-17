@@ -50,3 +50,16 @@ func ReNameHandler(nameNodeAddress string, renameSrcPath string, renameDestPath 
 	defer rpcClient.Close()
 	return client.ReName(rpcClient, renameSrcPath, renameDestPath)
 }
+
+func DeletePathHandler(nameNodeAddress string, remote_file_path string) bool {
+	rpcClient, err := initializeClientUtil(nameNodeAddress)
+	util.Check(err)
+	defer rpcClient.Close()
+	return client.DeletePath(rpcClient, remote_file_path)
+}
+func DeleteFileHandler(nameNodeAddress string, remote_file_path string, filename string) bool {
+	rpcClient, err := initializeClientUtil(nameNodeAddress)
+	util.Check(err)
+	defer rpcClient.Close()
+	return client.DeleteFile(rpcClient, remote_file_path, filename)
+}

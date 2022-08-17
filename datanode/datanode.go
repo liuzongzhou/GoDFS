@@ -29,7 +29,10 @@ type DataNodeGetRequest struct {
 	RemoteFilePath string
 	BlockId        string
 }
-
+type DataNodeDeleteRequest struct {
+	Remotefilepath string
+	FileName       string
+}
 type DataNodeWriteStatus struct {
 	Status bool
 }
@@ -114,6 +117,12 @@ func (dataNode *Service) GetData(request *DataNodeGetRequest, reply *DataNodeDat
 }
 func (dataNode *Service) MakeDir(request string, reply *DataNodeWriteStatus) error {
 	directory := dataNode.DataDirectory
+	//判断当前目录是否存在，存在说明创建过了，直接返回nil
+	if _, err2 := os.Stat(directory + request); err2 == nil {
+		*reply = DataNodeWriteStatus{Status: true}
+		return nil
+	}
+	//当前目录不存在，开始创建
 	err := os.MkdirAll(directory+request, os.ModePerm)
 	if err == nil {
 		*reply = DataNodeWriteStatus{Status: true}
@@ -121,6 +130,42 @@ func (dataNode *Service) MakeDir(request string, reply *DataNodeWriteStatus) err
 		return nil
 	}
 	return errors.New("创建失败")
+}
+
+func (dataNode *Service) DeletePath(request string, reply *DataNodeWriteStatus) error {
+	directory := dataNode.DataDirectory
+	//判断当前目录是否存在，不存在说明已经删除了，直接返回nil
+	_, err := os.Stat(directory + request)
+	if os.IsNotExist(err) {
+		*reply = DataNodeWriteStatus{Status: true}
+		return nil
+	}
+	//当前目录存在，则删除
+	err2 := os.RemoveAll(directory + request)
+	if err2 == nil {
+		*reply = DataNodeWriteStatus{Status: true}
+		fmt.Println("删除目录成功") //可以删除成功
+		return nil
+	}
+	return errors.New("删除目录失败")
+}
+
+func (dataNode *Service) DeleteFile(request string, reply *DataNodeWriteStatus) error {
+	directory := dataNode.DataDirectory
+	//判断当前文件是否存在，不存在说明已经删除了，直接返回nil
+	_, err := os.Stat(directory + request)
+	if os.IsNotExist(err) {
+		*reply = DataNodeWriteStatus{Status: true}
+		return nil
+	}
+	//当前文件存在，则删除
+	err2 := os.Remove(directory + request)
+	if err2 == nil {
+		*reply = DataNodeWriteStatus{Status: true}
+		fmt.Println("删除文件成功") //可以删除成功
+		return nil
+	}
+	return errors.New("删除文件失败")
 }
 
 type DataNodeReNameRequest struct {

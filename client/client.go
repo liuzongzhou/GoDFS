@@ -17,7 +17,7 @@ func Put(nameNodeInstance *rpc.Client, sourcePath string, fileName string, remot
 	util.Check(err)
 	//文件的大小
 	fileSize := uint64(fileSizeHandler.Size())
-	request := namenode.NameNodeWriteRequest{FileName: remotefilepath + fileName, FileSize: fileSize}
+	request := namenode.NameNodeWriteRequest{RemoteFilePath: remotefilepath, FileName: fileName, FileSize: fileSize}
 
 	var reply []namenode.NameNodeMetaData
 	//rpc调用Service.WriteData方法，写数据
@@ -130,6 +130,10 @@ func Mkdir(nameNodeInstance *rpc.Client, remote_file_path string) (mkDir bool) {
 		rpcErr = dataNodeInstance.Call("Service.MakeDir", request, &reply)
 		util.Check(rpcErr)
 		mkDir = reply.Status
+		//当有一个节点创建目录失败时，终端，返回操作失败，提示用户再试一次
+		if !mkDir {
+			break
+		}
 	}
 	return
 }
@@ -161,6 +165,59 @@ func ReName(nameNodeInstance *rpc.Client, renameSrcPath string, renameDestPath s
 		rpcErr = dataNodeInstance.Call("Service.ReNameDir", request, &reply)
 		util.Check(rpcErr)
 		reNameStatus = reply.Status
+	}
+	return
+}
+
+func DeletePath(nameNodeInstance *rpc.Client, remote_file_path string) (deletePathStatus bool) {
+	request := namenode.NameNodeDeleteRequest{Remote_file_path: remote_file_path}
+	var reply []util.DataNodeInstance
+	err := nameNodeInstance.Call("Service.GetIdToDataNodes", request, &reply)
+	util.Check(err)
+	//1.先删除datanode下对应的文件路径
+	for _, dataNodeInstance1 := range reply {
+		dataNodeInstance, rpcErr := rpc.Dial("tcp", dataNodeInstance1.Host+":"+dataNodeInstance1.ServicePort)
+		util.Check(rpcErr)
+		defer dataNodeInstance.Close()
+		var reply datanode.DataNodeWriteStatus
+		var request = datanode.DataNodeDeleteRequest{Remotefilepath: remote_file_path}
+		rpcErr = dataNodeInstance.Call("Service.DeletePath", request, &reply)
+		util.Check(rpcErr)
+		deletePathStatus = reply.Status
+		//当出现错误时，说明某个节点删除失败，所以直接返回
+		if !deletePathStatus {
+			return
+		}
+	}
+	//2.删除路径成功，这个时候所有的block都删除了，需要处理namenode里面的缓存数据：
+	//FileNameToBlocks,
+	//BlockToDataNodeIds,
+	//FileNameSize,
+	//DirectoryToFileName
+	var reply1 bool
+	err = nameNodeInstance.Call("Service.DeleteMetaData", request, &reply1)
+	util.Check(err)
+	deletePathStatus = reply1
+	return
+}
+
+func DeleteFile(nameNodeInstance *rpc.Client, remote_file_path string, filename string) (deleteFileStatus bool) {
+	request := namenode.NameNodeDeleteRequest{Remote_file_path: remote_file_path}
+	var reply []util.DataNodeInstance
+	err := nameNodeInstance.Call("Service.GetIdToDataNodes", request, &reply)
+	util.Check(err)
+	for _, dataNodeInstance1 := range reply {
+		dataNodeInstance, rpcErr := rpc.Dial("tcp", dataNodeInstance1.Host+":"+dataNodeInstance1.ServicePort)
+		util.Check(rpcErr)
+		defer dataNodeInstance.Close()
+		var reply datanode.DataNodeWriteStatus
+		var request = datanode.DataNodeDeleteRequest{Remotefilepath: remote_file_path, FileName: filename}
+		rpcErr = dataNodeInstance.Call("Service.DeleteFile", request, &reply)
+		util.Check(rpcErr)
+		deleteFileStatus = reply.Status
+		if !deleteFileStatus {
+			break
+		}
 	}
 	return
 }

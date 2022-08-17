@@ -27,8 +27,9 @@ type NameNodeFileSize struct {
 
 // NameNodeWriteRequest namenode写入请求
 type NameNodeWriteRequest struct {
-	FileName string
-	FileSize uint64
+	RemoteFilePath string
+	FileName       string
+	FileSize       uint64
 }
 
 type ReDistributeDataRequest struct {
@@ -49,6 +50,7 @@ type Service struct {
 	BlockToDataNodeIds   map[string][]uint64
 	FileNameSize         map[string]uint64 //文件大小
 	DirectoryToDataNodes map[string][]util.DataNodeInstance
+	DirectoryToFileName  map[string][]string
 }
 
 func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *Service {
@@ -61,6 +63,7 @@ func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *
 		BlockToDataNodeIds:   make(map[string][]uint64),
 		FileNameSize:         make(map[string]uint64),
 		DirectoryToDataNodes: make(map[string][]util.DataNodeInstance),
+		DirectoryToFileName:  make(map[string][]string),
 	}
 }
 
@@ -107,11 +110,16 @@ func (nameNode *Service) FileSize(request *NameNodeReadRequest, reply *NameNodeF
 	return errors.New("文件不存在")
 }
 func (nameNode *Service) WriteData(request *NameNodeWriteRequest, reply *[]NameNodeMetaData) error {
-	nameNode.FileNameToBlocks[request.FileName] = []string{}
+	nameNode.FileNameToBlocks[request.RemoteFilePath+request.FileName] = []string{}
+	if _, ok := nameNode.DirectoryToFileName[request.RemoteFilePath]; ok {
+		nameNode.DirectoryToFileName[request.RemoteFilePath] = append(nameNode.DirectoryToFileName[request.RemoteFilePath], request.FileName)
+	} else {
+		nameNode.DirectoryToFileName[request.RemoteFilePath] = []string{request.FileName}
+	}
 	//向上取整 需要分配的块数
-	nameNode.FileNameSize[request.FileName] = request.FileSize
+	nameNode.FileNameSize[request.RemoteFilePath+request.FileName] = request.FileSize
 	numberOfBlocksToAllocate := uint64(math.Ceil(float64(request.FileSize) / float64(nameNode.BlockSize)))
-	*reply = nameNode.allocateBlocks(request.FileName, numberOfBlocksToAllocate)
+	*reply = nameNode.allocateBlocks(request.RemoteFilePath+request.FileName, numberOfBlocksToAllocate)
 	return nil
 }
 
@@ -120,6 +128,15 @@ type NameNodeMkDirRequest struct {
 }
 
 func (nameNode *Service) GetIdToDataNodes(request *NameNodeMkDirRequest, reply *[]util.DataNodeInstance) error {
+	ReMoteFilePath := request.ReMoteFilePath
+	for _, instance := range nameNode.IdToDataNodes {
+		*reply = append(*reply, instance)
+	}
+	nameNode.DirectoryToDataNodes[ReMoteFilePath] = *reply
+	return nil
+}
+
+func (nameNode *Service) DeleteMetaData(request *NameNodeMkDirRequest, reply *[]util.DataNodeInstance) error {
 	ReMoteFilePath := request.ReMoteFilePath
 	for _, instance := range nameNode.IdToDataNodes {
 		*reply = append(*reply, instance)
@@ -167,7 +184,9 @@ type NameNodeReNameRequest struct {
 	ReNameSrcPath  string
 	ReNameDestPath string
 }
-
+type NameNodeDeleteRequest struct {
+	Remote_file_path string
+}
 type ListMetaData struct {
 	FileName string
 	FileSize uint64

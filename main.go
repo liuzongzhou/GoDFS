@@ -75,6 +75,12 @@ func main() {
 		} else if *clientOperationPtr == "rename" {
 			status := client.ReNameHandler(*clientNameNodePortPtr, *renameSrcPath, *renameDestPath)
 			log.Printf("ReName status: %t\n", status)
+		} else if *clientOperationPtr == "deletepath" {
+			status := client.DeletePathHandler(*clientNameNodePortPtr, *clientRemotefilepath)
+			log.Printf("DeletePath status: %t\n", status)
+		} else if *clientOperationPtr == "deletefile" {
+			status := client.DeleteFileHandler(*clientNameNodePortPtr, *clientRemotefilepath, *clientFilenamePtr)
+			log.Printf("DeleteFile status: %t\n", status)
 		}
 	}
 }
