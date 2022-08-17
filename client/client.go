@@ -164,3 +164,24 @@ func ReName(nameNodeInstance *rpc.Client, renameSrcPath string, renameDestPath s
 	}
 	return
 }
+
+func ReNameFile(nameNodeInstance *rpc.Client, renameSrcFile string, renameDestFile string) (reNameStatus bool) {
+	request := namenode.NameNodeReNameFileRequest{ReNameSrcFileName: renameSrcFile, ReNameDestFileName: renameDestFile}
+	var reply []util.DataNodeInstance
+	err := nameNodeInstance.Call("Service.ReNameFile", request, &reply)
+	util.Check(err)
+	reNameStatus = true
+	return
+}
+
+func List(nameNodeInstance *rpc.Client, remoteDirName string) (fileInfo map[string]uint64) {
+	request := namenode.NameNodeListRequest{RemoteDirPath: remoteDirName}
+	var reply []namenode.ListMetaData
+	err := nameNodeInstance.Call("Service.List", request, &reply)
+	fileInfo = make(map[string]uint64)
+	for _, listMetaData := range reply {
+		fileInfo[listMetaData.FileName] = listMetaData.FileSize
+	}
+	util.Check(err)
+	return
+}

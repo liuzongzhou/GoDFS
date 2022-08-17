@@ -54,24 +54,3 @@ func TestNameNodeServiceWrite(t *testing.T) {
 		t.Errorf("Unable to set metadata correctly; Expected: %d, found: %d.", 3, len(replyPayload))
 	}
 }
-
-// Test write process
-func TestNameNodeMkdir(t *testing.T) {
-	testNameNodeService := Service{
-		BlockSize:          4,
-		ReplicationFactor:  2,
-		FileNameToBlocks:   make(map[string][]string),
-		IdToDataNodes:      make(map[uint64]util.DataNodeInstance),
-		BlockToDataNodeIds: make(map[string][]uint64),
-	}
-
-	testDataNodeInstance1 := util.DataNodeInstance{Host: "localhost", ServicePort: "1234"}
-	testDataNodeInstance2 := util.DataNodeInstance{Host: "localhost", ServicePort: "4321"}
-	testNameNodeService.IdToDataNodes[0] = testDataNodeInstance1
-	testNameNodeService.IdToDataNodes[1] = testDataNodeInstance2
-
-	var reply []util.DataNodeInstance
-	err := testNameNodeService.GetIdToDataNodes(true, &reply)
-	log.Println(err)
-
-}

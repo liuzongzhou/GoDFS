@@ -196,6 +196,29 @@ func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]util.Da
 	return nil
 }
 
+type NameNodeReNameFileRequest struct {
+	ReNameSrcFileName  string
+	ReNameDestFileName string
+}
+
+func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *[]util.DataNodeInstance) error {
+	ReNameSrcFileName := request.ReNameSrcFileName
+	ReNameDestFileName := request.ReNameDestFileName
+	for fileName, Blocks := range nameNode.FileNameToBlocks {
+		if ReNameSrcFileName == fileName {
+			delete(nameNode.FileNameToBlocks, fileName)
+			nameNode.FileNameToBlocks[ReNameDestFileName] = Blocks
+		}
+	}
+	for fileName, FileSize := range nameNode.FileNameSize {
+		if ReNameSrcFileName == fileName {
+			delete(nameNode.FileNameSize, fileName)
+			nameNode.FileNameSize[ReNameDestFileName] = FileSize
+		}
+	}
+	return nil
+}
+
 type NameNodeListRequest struct {
 	RemoteDirPath string
 }
