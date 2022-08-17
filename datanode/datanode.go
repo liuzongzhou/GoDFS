@@ -133,8 +133,8 @@ func (dataNode *Service) ReNameDir(request *DataNodeReNameRequest, reply *DataNo
 	err := os.Rename(directory+request.ReNameSrcPath, directory+request.ReNameDestPath)
 	if err == nil {
 		*reply = DataNodeWriteStatus{Status: true}
-		fmt.Println("创建成功") //可以创建成功
+		fmt.Println("重命名成功") //可以创建成功
 		return nil
 	}
-	return errors.New("创建失败")
+	return errors.New("重命名失败")
 }

@@ -118,7 +118,7 @@ func Get(nameNodeInstance *rpc.Client, remotefilepath string, fileName string, l
 
 func Mkdir(nameNodeInstance *rpc.Client, remote_file_path string) (mkDir bool) {
 	var reply []util.DataNodeInstance
-	var request = true
+	var request = namenode.NameNodeMkDirRequest{ReMoteFilePath: remote_file_path}
 	err := nameNodeInstance.Call("Service.GetIdToDataNodes", request, &reply)
 	util.Check(err)
 	for _, dataNodeInstance1 := range reply {
@@ -149,11 +149,18 @@ func Stat(nameNodeInstance *rpc.Client, remote_file_path string, fileName string
 
 func ReName(nameNodeInstance *rpc.Client, renameSrcPath string, renameDestPath string) (reNameStatus bool) {
 	request := namenode.NameNodeReNameRequest{ReNameSrcPath: renameSrcPath, ReNameDestPath: renameDestPath}
-	var reply namenode.NameNodeListRequest
+	var reply []util.DataNodeInstance
 	err := nameNodeInstance.Call("Service.ReName", request, &reply)
-	if err != nil {
-		reNameStatus = false
+	util.Check(err)
+	for _, dataNodeInstance1 := range reply {
+		dataNodeInstance, rpcErr := rpc.Dial("tcp", dataNodeInstance1.Host+":"+dataNodeInstance1.ServicePort)
+		util.Check(rpcErr)
+		defer dataNodeInstance.Close()
+		var reply datanode.DataNodeWriteStatus
+		var request = datanode.DataNodeReNameRequest{ReNameSrcPath: renameSrcPath, ReNameDestPath: renameDestPath}
+		rpcErr = dataNodeInstance.Call("Service.ReNameDir", request, &reply)
+		util.Check(rpcErr)
+		reNameStatus = reply.Status
 	}
-	reNameStatus = true
 	return
 }
