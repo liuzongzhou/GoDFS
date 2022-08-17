@@ -65,13 +65,15 @@ func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *
 	}
 }
 
-func selectRandomNumbers(availableItems []uint64, count uint64) (randomNumberSet []uint64) {
+//随机选择存储节点，尽量做到负载均衡
+func selectRandomNumbers(dataNodesAvailable []uint64, replicationFactor uint64) (randomNumberSet []uint64) {
+	//当前已经选择的datanodeId,防止备份BlockId文件写再同一个节点上
 	numberPresentMap := make(map[uint64]bool)
-	for i := uint64(0); i < count; {
-		chosenItem := availableItems[rand.Intn(len(availableItems))]
-		if _, ok := numberPresentMap[chosenItem]; !ok {
-			numberPresentMap[chosenItem] = true
-			randomNumberSet = append(randomNumberSet, chosenItem)
+	for i := uint64(0); i < replicationFactor; {
+		datanodeId := dataNodesAvailable[rand.Intn(len(dataNodesAvailable))]
+		if _, ok := numberPresentMap[datanodeId]; !ok {
+			numberPresentMap[datanodeId] = true
+			randomNumberSet = append(randomNumberSet, datanodeId)
 			i++
 		}
 	}
@@ -85,49 +87,64 @@ func (nameNode *Service) GetBlockSize(request bool, reply *uint64) error {
 	return nil
 }
 
+// ReadData 读取文件对应的元数据数组
+// request:文件名：path + fileName
+// 返回信息：BlockIds对应的BlockAddresses（datanode的host+port）
 func (nameNode *Service) ReadData(request *NameNodeReadRequest, reply *[]NameNodeMetaData) error {
+	//读取nameNode里面FileNameToBlocks的元数据信息，通过key获取BlockIds
 	fileBlocks := nameNode.FileNameToBlocks[request.FileName]
-
+	//遍历每个BlockId
 	for _, block := range fileBlocks {
 		var blockAddresses []util.DataNodeInstance
-
+		//存储每个BlockId所有的datanodeId,包含备份的
 		targetDataNodeIds := nameNode.BlockToDataNodeIds[block]
 		for _, dataNodeId := range targetDataNodeIds {
+			//将datanode的host+port打包
 			blockAddresses = append(blockAddresses, nameNode.IdToDataNodes[dataNodeId])
 		}
-
+		//返回打包的元数据信息
 		*reply = append(*reply, NameNodeMetaData{BlockId: block, BlockAddresses: blockAddresses})
 	}
 	return nil
 }
+
+// FileSize 获取文件对应的文件大小
 func (nameNode *Service) FileSize(request *NameNodeReadRequest, reply *NameNodeFileSize) error {
+	//判断元数据信息FileNameSize是否含有key：path+filename,存在取得value:filesize,否则输出文件不存在
 	if value, ok := nameNode.FileNameSize[request.FileName]; ok {
 		reply.FileSize = value // 存在
 		return nil
 	}
 	return errors.New("文件不存在")
 }
+
+// WriteData 传入写入请求：{路径，文件名，文件大小}
+// 返回数据：元数据数组，包含每个BlockId对应多个datanodeId(备份)
 func (nameNode *Service) WriteData(request *NameNodeWriteRequest, reply *[]NameNodeMetaData) error {
+	// 维护FileNameToBlocks元数据信息，key:路径+文件名 value:blockIds 目的：防止出现同名文件无法判断，唯一性
 	nameNode.FileNameToBlocks[request.RemoteFilePath+request.FileName] = []string{}
+	// 维护DirectoryToFileName元数据信息 key:路径 value:该路径下的所有文件名
+	// 当存在此key，则往value数组里面添加值
 	if _, ok := nameNode.DirectoryToFileName[request.RemoteFilePath]; ok {
 		nameNode.DirectoryToFileName[request.RemoteFilePath] = append(nameNode.DirectoryToFileName[request.RemoteFilePath], request.FileName)
-	} else {
+	} else { //如果不存在，则新建key并添加值
 		nameNode.DirectoryToFileName[request.RemoteFilePath] = []string{request.FileName}
 	}
-	//向上取整 需要分配的块数
+	// 维护FileNameSize元数据信息 key:路径+文件 value:该文件的大小
 	nameNode.FileNameSize[request.RemoteFilePath+request.FileName] = request.FileSize
+	//向上取整 计算上传文件需要分割的块数
 	numberOfBlocksToAllocate := uint64(math.Ceil(float64(request.FileSize) / float64(nameNode.BlockSize)))
+	// 实现分配方案：文件存在哪些datanode节点上（包含备份）
 	*reply = nameNode.allocateBlocks(request.RemoteFilePath+request.FileName, numberOfBlocksToAllocate)
 	return nil
 }
 
-type NameNodeMkDirRequest struct {
-	ReMoteFilePath string
-}
-
-func (nameNode *Service) GetIdToDataNodes(request *NameNodeMkDirRequest, reply *[]util.DataNodeInstance) error {
-	for _, instance := range nameNode.IdToDataNodes {
-		*reply = append(*reply, instance)
+//GetIdToDataNodes 获取当前存活的datanode元数据组信息：host+port
+func (nameNode *Service) GetIdToDataNodes(request *bool, reply *[]util.DataNodeInstance) error {
+	if *request {
+		for _, instance := range nameNode.IdToDataNodes {
+			*reply = append(*reply, instance)
+		}
 	}
 	return nil
 }
@@ -162,38 +179,50 @@ func (nameNode *Service) DeleteFileNameMetaData(request *NameNodeDeleteRequest, 
 	*reply = true
 	return nil
 }
+
+// allocateBlocks 实现分配方案：文件存在哪些datanode节点上（包含备份）
 func (nameNode *Service) allocateBlocks(fileName string, numberOfBlocks uint64) (metadata []NameNodeMetaData) {
+	//建立FileNameToBlocks的元数据库信息 key：path+filename
 	nameNode.FileNameToBlocks[fileName] = []string{}
 	var dataNodesAvailable []uint64
+	//当前存活的，添加当前可用的datanodeId
 	for k, _ := range nameNode.IdToDataNodes {
 		dataNodesAvailable = append(dataNodesAvailable, k)
 	}
+	//统计可用的datanode数量
 	dataNodesAvailableCount := uint64(len(dataNodesAvailable))
-
+	//总共要生成的block数，挨个遍历生成，分配datanode节点
 	for i := uint64(0); i < numberOfBlocks; i++ {
+		//生成uuid，作为datanode底层存储的文件名
 		blockId := uuid.New().String()
+		//维护FileNameToBlocks的元数据库信息
 		nameNode.FileNameToBlocks[fileName] = append(nameNode.FileNameToBlocks[fileName], blockId)
 
 		var blockAddresses []util.DataNodeInstance
 		var replicationFactor uint64
+		// client设置的副本数大于可用的datanode节点数时，则副本数自动变成可用的节点数
 		if nameNode.ReplicationFactor > dataNodesAvailableCount {
 			replicationFactor = dataNodesAvailableCount
-		} else {
+		} else { //否则就按照client 设置的来
 			replicationFactor = nameNode.ReplicationFactor
 		}
-
+		// 具体安排这个BlockId文件存在哪些datanodes(包含备份)
 		targetDataNodeIds := nameNode.assignDataNodes(blockId, dataNodesAvailable, replicationFactor)
+		//获取blockId对应的datanodes元数据信息数组
 		for _, dataNodeId := range targetDataNodeIds {
 			blockAddresses = append(blockAddresses, nameNode.IdToDataNodes[dataNodeId])
 		}
-
+		//追加元数据信息
 		metadata = append(metadata, NameNodeMetaData{BlockId: blockId, BlockAddresses: blockAddresses})
 	}
 	return
 }
 
+// assignDataNodes 具体安排这个BlockId文件存在哪些datanodes(包含备份)
 func (nameNode *Service) assignDataNodes(blockId string, dataNodesAvailable []uint64, replicationFactor uint64) []uint64 {
+	//随机选择存储节点，尽量做到负载均衡
 	targetDataNodeIds := selectRandomNumbers(dataNodesAvailable, replicationFactor)
+	//维护BlockToDataNodeIds元数据信息，key:blockId value：存储的datanodeId
 	nameNode.BlockToDataNodeIds[blockId] = targetDataNodeIds
 	return targetDataNodeIds
 }
@@ -365,7 +394,7 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 			Data:             blockContents,
 			ReplicationNodes: remainingDataNodes,
 		}
-		var putReply datanode.DataNodeWriteStatus
+		var putReply datanode.DataNodeReplyStatus
 
 		rpcErr = targetDataNodeInstance.Call("Service.PutData", putRequest, &putReply)
 		util.Check(rpcErr)

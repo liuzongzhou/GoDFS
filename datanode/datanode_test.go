@@ -26,7 +26,7 @@ func TestDataNodeServiceWrite(t *testing.T) {
 	testDataNodeService.ServicePort = 8000
 
 	putRequestPayload := DataNodePutRequest{BlockId: "1", Data: "Hello world", ReplicationNodes: nil}
-	var replyPayload DataNodeWriteStatus
+	var replyPayload DataNodeReplyStatus
 	testDataNodeService.PutData(&putRequestPayload, &replyPayload)
 
 	if !replyPayload.Status {
@@ -53,6 +53,6 @@ func TestDataNodeMkdir(t *testing.T) {
 	testDataNodeService := new(Service)
 	testDataNodeService.DataDirectory = "D:/workplace1/dndata3/"
 	testDataNodeService.ServicePort = 8000
-	var reply DataNodeWriteStatus
+	var reply DataNodeReplyStatus
 	testDataNodeService.MakeDir("test1/", &reply)
 }
