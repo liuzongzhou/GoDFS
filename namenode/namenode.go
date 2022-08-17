@@ -178,14 +178,14 @@ func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]util.Da
 	for fileName, Blocks := range nameNode.FileNameToBlocks {
 		if strings.HasPrefix(fileName, renameSrcPath) {
 			delete(nameNode.FileNameToBlocks, fileName)
-			strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
+			fileName = strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
 			nameNode.FileNameToBlocks[fileName] = Blocks
 		}
 	}
 	for fileName, FileSize := range nameNode.FileNameSize {
 		if strings.HasPrefix(fileName, renameSrcPath) {
 			delete(nameNode.FileNameSize, fileName)
-			strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
+			fileName = strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
 			nameNode.FileNameSize[fileName] = FileSize
 		}
 	}
@@ -200,18 +200,12 @@ type NameNodeReNameFileRequest struct {
 func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *[]util.DataNodeInstance) error {
 	ReNameSrcFileName := request.ReNameSrcFileName
 	ReNameDestFileName := request.ReNameDestFileName
-	for fileName, Blocks := range nameNode.FileNameToBlocks {
-		if ReNameSrcFileName == fileName {
-			delete(nameNode.FileNameToBlocks, fileName)
-			nameNode.FileNameToBlocks[ReNameDestFileName] = Blocks
-		}
-	}
-	for fileName, FileSize := range nameNode.FileNameSize {
-		if ReNameSrcFileName == fileName {
-			delete(nameNode.FileNameSize, fileName)
-			nameNode.FileNameSize[ReNameDestFileName] = FileSize
-		}
-	}
+	Blocks := nameNode.FileNameToBlocks[ReNameSrcFileName]
+	delete(nameNode.FileNameToBlocks, ReNameSrcFileName)
+	nameNode.FileNameToBlocks[ReNameDestFileName] = Blocks
+	FileSize := nameNode.FileNameSize[ReNameSrcFileName]
+	delete(nameNode.FileNameSize, ReNameSrcFileName)
+	nameNode.FileNameSize[ReNameDestFileName] = FileSize
 	return nil
 }
 
