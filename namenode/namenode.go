@@ -49,7 +49,6 @@ type Service struct {
 	FileNameToBlocks     map[string][]string
 	BlockToDataNodeIds   map[string][]uint64
 	FileNameSize         map[string]uint64 //文件大小
-	DirectoryToDataNodes map[string][]util.DataNodeInstance
 	DirectoryToFileName  map[string][]string
 }
 
@@ -62,7 +61,6 @@ func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *
 		IdToDataNodes:        make(map[uint64]util.DataNodeInstance),
 		BlockToDataNodeIds:   make(map[string][]uint64),
 		FileNameSize:         make(map[string]uint64),
-		DirectoryToDataNodes: make(map[string][]util.DataNodeInstance),
 		DirectoryToFileName:  make(map[string][]string),
 	}
 }
@@ -128,11 +126,9 @@ type NameNodeMkDirRequest struct {
 }
 
 func (nameNode *Service) GetIdToDataNodes(request *NameNodeMkDirRequest, reply *[]util.DataNodeInstance) error {
-	ReMoteFilePath := request.ReMoteFilePath
 	for _, instance := range nameNode.IdToDataNodes {
 		*reply = append(*reply, instance)
 	}
-	nameNode.DirectoryToDataNodes[ReMoteFilePath] = *reply
 	return nil
 }
 
@@ -195,21 +191,44 @@ type ListMetaData struct {
 func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]util.DataNodeInstance) error {
 	renameSrcPath := request.ReNameSrcPath
 	renameDestPath := request.ReNameDestPath
-	nameNode.DirectoryToDataNodes[renameDestPath] = nameNode.DirectoryToDataNodes[renameSrcPath]
-	*reply = nameNode.DirectoryToDataNodes[renameSrcPath]
-	delete(nameNode.DirectoryToDataNodes, renameSrcPath)
+	for _, instance := range nameNode.IdToDataNodes {
+		*reply = append(*reply, instance)
+	}
 	for fileName, Blocks := range nameNode.FileNameToBlocks {
-		if strings.HasSuffix(fileName, renameSrcPath) {
+		if strings.HasPrefix(fileName, renameSrcPath) {
 			delete(nameNode.FileNameToBlocks, fileName)
 			strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
 			nameNode.FileNameToBlocks[fileName] = Blocks
 		}
 	}
 	for fileName, FileSize := range nameNode.FileNameSize {
-		if strings.HasSuffix(fileName, renameSrcPath) {
+		if strings.HasPrefix(fileName, renameSrcPath) {
 			delete(nameNode.FileNameSize, fileName)
 			strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
 			nameNode.FileNameSize[fileName] = FileSize
+		}
+	}
+	return nil
+}
+
+type NameNodeReNameFileRequest struct {
+	ReNameSrcFileName  string
+	ReNameDestFileName string
+}
+
+func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *[]util.DataNodeInstance) error {
+	ReNameSrcFileName := request.ReNameSrcFileName
+	ReNameDestFileName := request.ReNameDestFileName
+	for fileName, Blocks := range nameNode.FileNameToBlocks {
+		if ReNameSrcFileName == fileName {
+			delete(nameNode.FileNameToBlocks, fileName)
+			nameNode.FileNameToBlocks[ReNameDestFileName] = Blocks
+		}
+	}
+	for fileName, FileSize := range nameNode.FileNameSize {
+		if ReNameSrcFileName == fileName {
+			delete(nameNode.FileNameSize, fileName)
+			nameNode.FileNameSize[ReNameDestFileName] = FileSize
 		}
 	}
 	return nil
@@ -222,7 +241,7 @@ type NameNodeListRequest struct {
 func (nameNode *Service) List(request *NameNodeListRequest, reply *[]ListMetaData) error {
 	RemoteDirPath := request.RemoteDirPath
 	for fileName, FileSize := range nameNode.FileNameSize {
-		if strings.HasSuffix(fileName, RemoteDirPath) {
+		if strings.HasPrefix(fileName, RemoteDirPath) {
 			*reply = append(*reply, ListMetaData{FileName: fileName, FileSize: FileSize})
 		}
 	}
