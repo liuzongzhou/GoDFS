@@ -242,14 +242,12 @@ type NameNodeReNameFileRequest struct {
 func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *[]util.DataNodeInstance) error {
 	ReNameSrcFileName := request.ReNameSrcFileName
 	ReNameDestFileName := request.ReNameDestFileName
-
 	Blocks := nameNode.FileNameToBlocks[ReNameSrcFileName]
 	delete(nameNode.FileNameToBlocks, ReNameSrcFileName)
 	nameNode.FileNameToBlocks[ReNameDestFileName] = Blocks
 	FileSize := nameNode.FileNameSize[ReNameSrcFileName]
 	delete(nameNode.FileNameSize, ReNameSrcFileName)
 	nameNode.FileNameSize[ReNameDestFileName] = FileSize
-	//nameNode.DirectoryToFileName[re] key:二级目录  value;filename
 	return nil
 }
 
