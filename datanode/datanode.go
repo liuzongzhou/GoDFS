@@ -30,8 +30,8 @@ type DataNodeGetRequest struct {
 	BlockId        string
 }
 type DataNodeDeleteRequest struct {
-	Remotefilepath string
-	FileName       string
+	RemoteFilepath string
+	BlockId        string
 }
 type DataNodeWriteStatus struct {
 	Status bool
@@ -126,10 +126,10 @@ func (dataNode *Service) MakeDir(request string, reply *DataNodeWriteStatus) err
 	err := os.MkdirAll(directory+request, os.ModePerm)
 	if err == nil {
 		*reply = DataNodeWriteStatus{Status: true}
-		fmt.Println("创建成功") //可以创建成功
+		fmt.Println("创建目录成功") //可以创建成功
 		return nil
 	}
-	return errors.New("创建失败")
+	return errors.New("创建目录失败")
 }
 
 func (dataNode *Service) DeletePath(request string, reply *DataNodeWriteStatus) error {

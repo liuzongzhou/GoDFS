@@ -42,26 +42,26 @@ type UnderReplicatedBlocks struct {
 }
 
 type Service struct {
-	Port                 uint16
-	BlockSize            uint64
-	ReplicationFactor    uint64
-	IdToDataNodes        map[uint64]util.DataNodeInstance
-	FileNameToBlocks     map[string][]string
-	BlockToDataNodeIds   map[string][]uint64
-	FileNameSize         map[string]uint64 //文件大小
-	DirectoryToFileName  map[string][]string
+	Port                uint16
+	BlockSize           uint64
+	ReplicationFactor   uint64
+	IdToDataNodes       map[uint64]util.DataNodeInstance
+	FileNameToBlocks    map[string][]string //key:path+filename
+	BlockToDataNodeIds  map[string][]uint64
+	FileNameSize        map[string]uint64 //文件大小  //key:path+filename
+	DirectoryToFileName map[string][]string
 }
 
 func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *Service {
 	return &Service{
-		Port:                 serverPort,
-		BlockSize:            blockSize,
-		ReplicationFactor:    replicationFactor,
-		FileNameToBlocks:     make(map[string][]string),
-		IdToDataNodes:        make(map[uint64]util.DataNodeInstance),
-		BlockToDataNodeIds:   make(map[string][]uint64),
-		FileNameSize:         make(map[string]uint64),
-		DirectoryToFileName:  make(map[string][]string),
+		Port:                serverPort,
+		BlockSize:           blockSize,
+		ReplicationFactor:   replicationFactor,
+		FileNameToBlocks:    make(map[string][]string),
+		IdToDataNodes:       make(map[uint64]util.DataNodeInstance),
+		BlockToDataNodeIds:  make(map[string][]uint64),
+		FileNameSize:        make(map[string]uint64),
+		DirectoryToFileName: make(map[string][]string),
 	}
 }
 
@@ -132,12 +132,34 @@ func (nameNode *Service) GetIdToDataNodes(request *NameNodeMkDirRequest, reply *
 	return nil
 }
 
-func (nameNode *Service) DeleteMetaData(request *NameNodeMkDirRequest, reply *[]util.DataNodeInstance) error {
-	ReMoteFilePath := request.ReMoteFilePath
-	for _, instance := range nameNode.IdToDataNodes {
-		*reply = append(*reply, instance)
+func (nameNode *Service) DeleteMetaData(request *NameNodeDeleteRequest, reply *bool) error {
+	ReMoteFilePath := request.Remote_file_path
+	//遍历指定目录下的所有文件
+	for _, filename := range nameNode.DirectoryToFileName[ReMoteFilePath] {
+		for _, BlockId := range nameNode.FileNameToBlocks[ReMoteFilePath+filename] {
+			//删除这个BlockId的key
+			delete(nameNode.BlockToDataNodeIds, BlockId)
+		}
+		delete(nameNode.FileNameToBlocks, ReMoteFilePath+filename)
+		delete(nameNode.FileNameSize, ReMoteFilePath+filename)
 	}
-	nameNode.DirectoryToDataNodes[ReMoteFilePath] = *reply
+	delete(nameNode.DirectoryToFileName, ReMoteFilePath)
+	*reply = true
+	return nil
+}
+
+func (nameNode *Service) DeleteFileNameMetaData(request *NameNodeDeleteRequest, reply *bool) error {
+	ReMoteFilePath := request.Remote_file_path
+	fileName := request.FileName
+	//遍历指定目录下的所有文件
+	for _, BlockId := range nameNode.FileNameToBlocks[ReMoteFilePath+fileName] {
+		//删除这个BlockId的key
+		delete(nameNode.BlockToDataNodeIds, BlockId)
+	}
+	delete(nameNode.FileNameToBlocks, ReMoteFilePath+fileName)
+	delete(nameNode.FileNameSize, ReMoteFilePath+fileName)
+	delete(nameNode.DirectoryToFileName, ReMoteFilePath)
+	*reply = true
 	return nil
 }
 func (nameNode *Service) allocateBlocks(fileName string, numberOfBlocks uint64) (metadata []NameNodeMetaData) {
@@ -182,6 +204,7 @@ type NameNodeReNameRequest struct {
 }
 type NameNodeDeleteRequest struct {
 	Remote_file_path string
+	FileName         string
 }
 type ListMetaData struct {
 	FileName string
@@ -197,14 +220,14 @@ func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]util.Da
 	for fileName, Blocks := range nameNode.FileNameToBlocks {
 		if strings.HasPrefix(fileName, renameSrcPath) {
 			delete(nameNode.FileNameToBlocks, fileName)
-			strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
+			fileName = strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
 			nameNode.FileNameToBlocks[fileName] = Blocks
 		}
 	}
 	for fileName, FileSize := range nameNode.FileNameSize {
 		if strings.HasPrefix(fileName, renameSrcPath) {
 			delete(nameNode.FileNameSize, fileName)
-			strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
+			fileName = strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
 			nameNode.FileNameSize[fileName] = FileSize
 		}
 	}
@@ -219,18 +242,14 @@ type NameNodeReNameFileRequest struct {
 func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *[]util.DataNodeInstance) error {
 	ReNameSrcFileName := request.ReNameSrcFileName
 	ReNameDestFileName := request.ReNameDestFileName
-	for fileName, Blocks := range nameNode.FileNameToBlocks {
-		if ReNameSrcFileName == fileName {
-			delete(nameNode.FileNameToBlocks, fileName)
-			nameNode.FileNameToBlocks[ReNameDestFileName] = Blocks
-		}
-	}
-	for fileName, FileSize := range nameNode.FileNameSize {
-		if ReNameSrcFileName == fileName {
-			delete(nameNode.FileNameSize, fileName)
-			nameNode.FileNameSize[ReNameDestFileName] = FileSize
-		}
-	}
+
+	Blocks := nameNode.FileNameToBlocks[ReNameSrcFileName]
+	delete(nameNode.FileNameToBlocks, ReNameSrcFileName)
+	nameNode.FileNameToBlocks[ReNameDestFileName] = Blocks
+	FileSize := nameNode.FileNameSize[ReNameSrcFileName]
+	delete(nameNode.FileNameSize, ReNameSrcFileName)
+	nameNode.FileNameSize[ReNameDestFileName] = FileSize
+	//nameNode.DirectoryToFileName[re] key:二级目录  value;filename
 	return nil
 }
 
