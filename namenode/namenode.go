@@ -112,6 +112,10 @@ func (nameNode *Service) WriteData(request *NameNodeWriteRequest, reply *[]NameN
 	*reply = nameNode.allocateBlocks(request.FileName, numberOfBlocksToAllocate)
 	return nil
 }
+
+type NameNodeMkDirRequest struct {
+}
+
 func (nameNode *Service) GetIdToDataNodes(request bool, reply *[]util.DataNodeInstance) error {
 	if request {
 		for _, instance := range nameNode.IdToDataNodes {
@@ -154,6 +158,46 @@ func (nameNode *Service) assignDataNodes(blockId string, dataNodesAvailable []ui
 	targetDataNodeIds := selectRandomNumbers(dataNodesAvailable, replicationFactor)
 	nameNode.BlockToDataNodeIds[blockId] = targetDataNodeIds
 	return targetDataNodeIds
+}
+
+type NameNodeReNameRequest struct {
+	ReNameSrcPath  string
+	ReNameDestPath string
+}
+
+type ListMetaData struct {
+	FileName string
+	FileSize uint64
+}
+
+func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]ListMetaData) error {
+	renameSrcPath := request.ReNameSrcPath
+	renameDestPath := request.ReNameDestPath
+	for fileName := range nameNode.FileNameToBlocks {
+		if strings.HasSuffix(fileName, renameSrcPath) {
+			strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
+		}
+	}
+	for fileName := range nameNode.FileNameSize {
+		if strings.HasSuffix(fileName, renameSrcPath) {
+			strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
+		}
+	}
+	return nil
+}
+
+type NameNodeListRequest struct {
+	RemoteDirPath string
+}
+
+func (nameNode *Service) List(request *NameNodeListRequest, reply *[]ListMetaData) error {
+	RemoteDirPath := request.RemoteDirPath
+	for fileName, FileSize := range nameNode.FileNameSize {
+		if strings.HasSuffix(fileName, RemoteDirPath) {
+			*reply = append(*reply, ListMetaData{FileName: fileName, FileSize: FileSize})
+		}
+	}
+	return nil
 }
 
 func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, reply *bool) error {

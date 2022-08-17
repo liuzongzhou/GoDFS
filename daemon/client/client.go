@@ -43,3 +43,10 @@ func Stat(nameNodeAddress string, remote_file_path string, fileName string) (fil
 	defer rpcClient.Close()
 	return client.Stat(rpcClient, remote_file_path, fileName)
 }
+
+func ReNameHandler(nameNodeAddress string, renameSrcPath string, renameDestPath string) bool {
+	rpcClient, err := initializeClientUtil(nameNodeAddress)
+	util.Check(err)
+	defer rpcClient.Close()
+	return client.ReName(rpcClient, renameSrcPath, renameDestPath)
+}

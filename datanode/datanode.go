@@ -122,3 +122,19 @@ func (dataNode *Service) MakeDir(request string, reply *DataNodeWriteStatus) err
 	}
 	return errors.New("创建失败")
 }
+
+type DataNodeReNameRequest struct {
+	ReNameSrcPath  string
+	ReNameDestPath string
+}
+
+func (dataNode *Service) ReNameDir(request *DataNodeReNameRequest, reply *DataNodeWriteStatus) error {
+	directory := dataNode.DataDirectory
+	err := os.Rename(directory+request.ReNameSrcPath, directory+request.ReNameDestPath)
+	if err == nil {
+		*reply = DataNodeWriteStatus{Status: true}
+		fmt.Println("创建成功") //可以创建成功
+		return nil
+	}
+	return errors.New("创建失败")
+}

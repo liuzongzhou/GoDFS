@@ -1,0 +1,4 @@
+github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
+github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/liuzongzhou/GoDFS v0.0.0-20220816153918-e59f945bdee2 h1:4B0jPX1hhiZyL4s7grwOZ8C7jvJ+EZzr6d3xChosPXs=
+github.com/liuzongzhou/GoDFS v0.0.0-20220816153918-e59f945bdee2/go.mod h1:AugdnmR7p10ffv6gs18qoEk0ry3YOlspQyGFt1R8IVI=

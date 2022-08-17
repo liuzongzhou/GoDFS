@@ -146,3 +146,14 @@ func Stat(nameNodeInstance *rpc.Client, remote_file_path string, fileName string
 	filename1 = ""
 	return
 }
+
+func ReName(nameNodeInstance *rpc.Client, renameSrcPath string, renameDestPath string) (reNameStatus bool) {
+	request := namenode.NameNodeReNameRequest{ReNameSrcPath: renameSrcPath, ReNameDestPath: renameDestPath}
+	var reply namenode.NameNodeListRequest
+	err := nameNodeInstance.Call("Service.ReName", request, &reply)
+	if err != nil {
+		reNameStatus = false
+	}
+	reNameStatus = true
+	return
+}

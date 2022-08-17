@@ -29,7 +29,8 @@ func main() {
 	clientFilenamePtr := clientCommand.String("filename", "", "File name")
 	clientRemotefilepath := clientCommand.String("remotefilepath", "", "Remote_file_path")
 	clientLocalfilepath := clientCommand.String("localfilepath", "", "Local_file_path")
-
+	renameSrcPath := clientCommand.String("rename_src_name", "", "rename_src_name")
+	renameDestPath := clientCommand.String("rename_dest_name", "", "rename_dest_name")
 	if len(os.Args) < 2 {
 		log.Println("sub-command is required")
 		os.Exit(1)
@@ -71,6 +72,9 @@ func main() {
 			} else {
 				log.Printf("文件名:%v\t文件大小:%v bytes\n", filename, filesize)
 			}
+		} else if *clientOperationPtr == "rename" {
+			status := client.ReNameHandler(*clientNameNodePortPtr, *renameSrcPath, *renameDestPath)
+			log.Printf("ReName status: %t\n", status)
 		}
 	}
 }
