@@ -239,26 +239,38 @@ func Stat(nameNodeInstance *rpc.Client, remote_file_path string, fileName string
 
 // ReName 文件夹的重命名 返回重命名是否成功
 func ReName(nameNodeInstance *rpc.Client, renameSrcPath string, renameDestPath string) (reNameStatus bool) {
-	request := namenode.NameNodeReNameRequest{ReNameSrcPath: renameSrcPath, ReNameDestPath: renameDestPath}
 	var reply []datanode.DataNodeInstance
-	// rpc调用NameNode的ReName方法，传入重命名的renameSrcPath和renameDestPath
-	// 修改NameNode的元数据信息并返回文件夹所在的DataNode节点
-	err := nameNodeInstance.Call("Service.ReName", request, &reply)
-	util.Check(err)
+	var request = true
+	//获取当前存活的datanode元数据组信息：host+port
+	err := nameNodeInstance.Call("Service.GetIdToDataNodes", request, &reply)
+	if nil != err {
+		log.Println(err)
+	}
 	// 对文件夹所在的DataNode节点进行遍历
 	for _, dataNodeInstance1 := range reply {
 		// 取得DataNode实例
 		dataNodeInstance, rpcErr := rpc.Dial("tcp", dataNodeInstance1.Host+":"+dataNodeInstance1.ServicePort)
-		util.Check(rpcErr)
+		if nil != rpcErr {
+			log.Println(rpcErr)
+		}
 		defer dataNodeInstance.Close()
 		var reply datanode.DataNodeReplyStatus
 		// 调用DataNode的ReNameDir方法去修改实际的路径信息
 		var request = datanode.DataNodeReNameRequest{ReNameSrcPath: renameSrcPath, ReNameDestPath: renameDestPath}
 		rpcErr = dataNodeInstance.Call("Service.ReNameDir", request, &reply)
-		util.Check(rpcErr)
+		if nil != rpcErr {
+			log.Println(rpcErr)
+		}
 		reNameStatus = reply.Status
 	}
 	// 将NameNode元数据信息和DataNode的实际数据信息修改完之后返回
+	// rpc调用NameNode的ReName方法，传入重命名的renameSrcPath和renameDestPath
+	// 修改NameNode的元数据信息并返回文件夹所在的DataNode节点
+	NameNodeRequest := namenode.NameNodeReNameRequest{ReNameSrcPath: renameSrcPath, ReNameDestPath: renameDestPath}
+	err = nameNodeInstance.Call("Service.ReName", NameNodeRequest, &reply)
+	if nil != err {
+		log.Println(err)
+	}
 	return
 }
 
@@ -269,7 +281,9 @@ func ReNameFile(nameNodeInstance *rpc.Client, renameSrcFile string, renameDestFi
 	// rpc调用NameNode的ReName方法，传入重命名的ReNameSrcFileName和ReNameDestFileName
 	// 修改NameNode的元数据信息并返回修改是否成功
 	err := nameNodeInstance.Call("Service.ReNameFile", request, &reply)
-	util.Check(err)
+	if nil != err {
+		log.Println(err)
+	}
 	reNameStatus = *reply
 	return
 }
@@ -285,7 +299,9 @@ func List(nameNodeInstance *rpc.Client, remoteDirName string) (fileInfo map[stri
 	for _, listMetaData := range reply {
 		fileInfo[listMetaData.FileName] = listMetaData.FileSize
 	}
-	util.Check(err)
+	if nil != err {
+		log.Println(err)
+	}
 	return
 }
 
@@ -295,7 +311,9 @@ func DeletePath(nameNodeInstance *rpc.Client, remote_file_path string) (deletePa
 	var reply []datanode.DataNodeInstance
 	//1.先得到当前存活的所有dataNodes节点信息
 	err := nameNodeInstance.Call("Service.GetIdToDataNodes", request, &reply)
-	util.Check(err)
+	if nil != err {
+		log.Println(err)
+	}
 	//2.删除datanode下对应的文件路径
 	for _, selectedDataNode := range reply {
 		dataNodeInstance, rpcErr := rpc.Dial("tcp", selectedDataNode.Host+":"+selectedDataNode.ServicePort)
