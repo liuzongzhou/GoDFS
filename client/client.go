@@ -237,38 +237,51 @@ func Stat(nameNodeInstance *rpc.Client, remote_file_path string, fileName string
 	return
 }
 
+// ReName 文件夹的重命名 返回重命名是否成功
 func ReName(nameNodeInstance *rpc.Client, renameSrcPath string, renameDestPath string) (reNameStatus bool) {
 	request := namenode.NameNodeReNameRequest{ReNameSrcPath: renameSrcPath, ReNameDestPath: renameDestPath}
 	var reply []util.DataNodeInstance
+	// rpc调用NameNode的ReName方法，传入重命名的renameSrcPath和renameDestPath
+	// 修改NameNode的元数据信息并返回文件夹所在的DataNode节点
 	err := nameNodeInstance.Call("Service.ReName", request, &reply)
 	util.Check(err)
+	// 对文件夹所在的DataNode节点进行遍历
 	for _, dataNodeInstance1 := range reply {
+		// 取得DataNode实例
 		dataNodeInstance, rpcErr := rpc.Dial("tcp", dataNodeInstance1.Host+":"+dataNodeInstance1.ServicePort)
 		util.Check(rpcErr)
 		defer dataNodeInstance.Close()
 		var reply datanode.DataNodeReplyStatus
+		// 调用DataNode的ReNameDir方法去修改实际的路径信息
 		var request = datanode.DataNodeReNameRequest{ReNameSrcPath: renameSrcPath, ReNameDestPath: renameDestPath}
 		rpcErr = dataNodeInstance.Call("Service.ReNameDir", request, &reply)
 		util.Check(rpcErr)
 		reNameStatus = reply.Status
 	}
+	// 将NameNode元数据信息和DataNode的实际数据信息修改完之后返回
 	return
 }
 
+// ReNameFile 文件的重命名，返回文件重命名是否成功
 func ReNameFile(nameNodeInstance *rpc.Client, renameSrcFile string, renameDestFile string) (reNameStatus bool) {
 	request := namenode.NameNodeReNameFileRequest{ReNameSrcFileName: renameSrcFile, ReNameDestFileName: renameDestFile}
-	var reply []util.DataNodeInstance
+	var reply *bool
+	// rpc调用NameNode的ReName方法，传入重命名的ReNameSrcFileName和ReNameDestFileName
+	// 修改NameNode的元数据信息并返回修改是否成功
 	err := nameNodeInstance.Call("Service.ReNameFile", request, &reply)
 	util.Check(err)
-	reNameStatus = true
+	reNameStatus = *reply
 	return
 }
 
+// List 展示文件目录下面的文件信息， 传入文件目录，返回文件信息
 func List(nameNodeInstance *rpc.Client, remoteDirName string) (fileInfo map[string]uint64) {
 	request := namenode.NameNodeListRequest{RemoteDirPath: remoteDirName}
 	var reply []namenode.ListMetaData
+	// 在List过程中，我们只需要操作文件元数据，所以只需要调用NameNode的List方法即可
 	err := nameNodeInstance.Call("Service.List", request, &reply)
 	fileInfo = make(map[string]uint64)
+	// 返回的数据通过Map形式返回
 	for _, listMetaData := range reply {
 		fileInfo[listMetaData.FileName] = listMetaData.FileSize
 	}

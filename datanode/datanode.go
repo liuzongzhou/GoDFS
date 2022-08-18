@@ -213,8 +213,10 @@ type DataNodeReNameRequest struct {
 	ReNameDestPath string
 }
 
+// ReNameDir 重命名文件目录
 func (dataNode *Service) ReNameDir(request *DataNodeReNameRequest, reply *DataNodeReplyStatus) error {
 	directory := dataNode.DataDirectory
+	// 调用os的ReName完成目录的重命名
 	err := os.Rename(directory+request.ReNameSrcPath, directory+request.ReNameDestPath)
 	if err == nil {
 		*reply = DataNodeReplyStatus{Status: true}

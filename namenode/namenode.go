@@ -21,6 +21,7 @@ type NameNodeMetaData struct {
 type NameNodeReadRequest struct {
 	FileName string
 }
+
 type NameNodeFileSize struct {
 	FileSize uint64
 }
@@ -39,6 +40,30 @@ type ReDistributeDataRequest struct {
 type UnderReplicatedBlocks struct {
 	BlockId           string
 	HealthyDataNodeId uint64
+}
+
+type NameNodeReNameRequest struct {
+	ReNameSrcPath  string
+	ReNameDestPath string
+}
+
+type NameNodeDeleteRequest struct {
+	Remote_file_path string
+	FileName         string
+}
+
+type ListMetaData struct {
+	FileName string
+	FileSize uint64
+}
+
+type NameNodeListRequest struct {
+	RemoteDirPath string
+}
+
+type NameNodeReNameFileRequest struct {
+	ReNameSrcFileName  string
+	ReNameDestFileName string
 }
 
 type Service struct {
@@ -244,67 +269,65 @@ func (nameNode *Service) assignDataNodes(blockId string, dataNodesAvailable []ui
 	return targetDataNodeIds
 }
 
-type NameNodeReNameRequest struct {
-	ReNameSrcPath  string
-	ReNameDestPath string
-}
-type NameNodeDeleteRequest struct {
-	Remote_file_path string
-	FileName         string
-}
-type ListMetaData struct {
-	FileName string
-	FileSize uint64
-}
-
+// ReName 重命名文件目录
 func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]util.DataNodeInstance) error {
 	renameSrcPath := request.ReNameSrcPath
 	renameDestPath := request.ReNameDestPath
+	// 返回NameNodes的元数据信息
 	for _, instance := range nameNode.IdToDataNodes {
 		*reply = append(*reply, instance)
 	}
+	// 修改目录下文件的元数据信息（文件绝对路径FileName和存储Blocks的映射关系）
 	for fileName, Blocks := range nameNode.FileNameToBlocks {
+		// 获取当前目录下需要修改的文件元数据
 		if strings.HasPrefix(fileName, renameSrcPath) {
+			// 删除当前目录的元数据信息
 			delete(nameNode.FileNameToBlocks, fileName)
+			// 修改文件的绝对路径信息
 			fileName = strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
+			// 修改文件绝对路径和Block的映射关系
 			nameNode.FileNameToBlocks[fileName] = Blocks
 		}
 	}
+	// 修改目录下文件的元数据信息（文件绝对路径FileName和FileSize的映射关系）
 	for fileName, FileSize := range nameNode.FileNameSize {
+		// 获取当前目录下需要修改的文件元数据
 		if strings.HasPrefix(fileName, renameSrcPath) {
 			delete(nameNode.FileNameSize, fileName)
+			// 修改文件的绝对路径信息
 			fileName = strings.Replace(fileName, renameSrcPath, renameDestPath, 1)
+			// 修改文件绝对路径FileName和FileSize的映射关系
 			nameNode.FileNameSize[fileName] = FileSize
 		}
 	}
 	return nil
 }
 
-type NameNodeReNameFileRequest struct {
-	ReNameSrcFileName  string
-	ReNameDestFileName string
-}
-
-func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *[]util.DataNodeInstance) error {
+// ReNameFile 修改文件名
+func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *bool) error {
 	ReNameSrcFileName := request.ReNameSrcFileName
 	ReNameDestFileName := request.ReNameDestFileName
+	// 修改文件的元数据信息（文件绝对路径FileName和存储Blocks的映射关系）
 	Blocks := nameNode.FileNameToBlocks[ReNameSrcFileName]
+	// 删除当前文件的元数据信息
 	delete(nameNode.FileNameToBlocks, ReNameSrcFileName)
 	nameNode.FileNameToBlocks[ReNameDestFileName] = Blocks
+	// 修改文件的元数据信息（文件绝对路径FileName和FileSize的映射关系）
 	FileSize := nameNode.FileNameSize[ReNameSrcFileName]
 	delete(nameNode.FileNameSize, ReNameSrcFileName)
+	// 修改文件绝对路径FileName和FileSize的映射关系
 	nameNode.FileNameSize[ReNameDestFileName] = FileSize
+	*reply = true
 	return nil
 }
 
-type NameNodeListRequest struct {
-	RemoteDirPath string
-}
-
+// List 罗列出文件夹中的文件信息
 func (nameNode *Service) List(request *NameNodeListRequest, reply *[]ListMetaData) error {
 	RemoteDirPath := request.RemoteDirPath
+	// 获取当前目录下文件的元数据信息
 	for fileName, FileSize := range nameNode.FileNameSize {
 		if strings.HasPrefix(fileName, RemoteDirPath) {
+			// 追加的形式返回文件元数据列表
 			*reply = append(*reply, ListMetaData{FileName: fileName, FileSize: FileSize})
 		}
 	}
