@@ -1,6 +1,7 @@
 package namenode
 
 import (
+	"github.com/liuzongzhou/GoDFS/datanode"
 	"github.com/liuzongzhou/GoDFS/util"
 	"log"
 	"testing"
@@ -12,12 +13,12 @@ func TestNameNodeCreation(t *testing.T) {
 		BlockSize:          4,
 		ReplicationFactor:  2,
 		FileNameToBlocks:   make(map[string][]string),
-		IdToDataNodes:      make(map[uint64]util.DataNodeInstance),
+		IdToDataNodes:      make(map[uint64]datanode.DataNodeInstance),
 		BlockToDataNodeIds: make(map[string][]uint64),
 	}
 
-	testDataNodeInstance1 := util.DataNodeInstance{Host: "localhost", ServicePort: "1234"}
-	testDataNodeInstance2 := util.DataNodeInstance{Host: "localhost", ServicePort: "4321"}
+	testDataNodeInstance1 := datanode.DataNodeInstance{Host: "localhost", ServicePort: "1234"}
+	testDataNodeInstance2 := datanode.DataNodeInstance{Host: "localhost", ServicePort: "4321"}
 	testNameNodeService.IdToDataNodes[0] = testDataNodeInstance1
 	testNameNodeService.IdToDataNodes[1] = testDataNodeInstance2
 
@@ -32,12 +33,12 @@ func TestNameNodeServiceWrite(t *testing.T) {
 		BlockSize:          4,
 		ReplicationFactor:  2,
 		FileNameToBlocks:   make(map[string][]string),
-		IdToDataNodes:      make(map[uint64]util.DataNodeInstance),
+		IdToDataNodes:      make(map[uint64]datanode.DataNodeInstance),
 		BlockToDataNodeIds: make(map[string][]uint64),
 	}
 
-	testDataNodeInstance1 := util.DataNodeInstance{Host: "localhost", ServicePort: "1234"}
-	testDataNodeInstance2 := util.DataNodeInstance{Host: "localhost", ServicePort: "4321"}
+	testDataNodeInstance1 := datanode.DataNodeInstance{Host: "localhost", ServicePort: "1234"}
+	testDataNodeInstance2 := datanode.DataNodeInstance{Host: "localhost", ServicePort: "4321"}
 	testNameNodeService.IdToDataNodes[0] = testDataNodeInstance1
 	testNameNodeService.IdToDataNodes[1] = testDataNodeInstance2
 

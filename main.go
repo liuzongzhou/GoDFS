@@ -49,6 +49,7 @@ func main() {
 			listOfDataNodes = strings.Split(*nameNodeListPtr, ",")
 		} else {
 			listOfDataNodes = []string{}
+
 		}
 		namenode.InitializeNameNodeUtil(*nameNodePortPtr, *nameNodeBlockSizePtr, *nameNodeReplicationFactorPtr, listOfDataNodes)
 

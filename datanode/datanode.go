@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/liuzongzhou/GoDFS/util"
 	"io/ioutil"
 	"log"
 	"net/rpc"
@@ -22,7 +21,7 @@ type DataNodePutRequest struct {
 	RemoteFilePath   string
 	BlockId          string
 	Data             string
-	ReplicationNodes []util.DataNodeInstance
+	ReplicationNodes []DataNodeInstance
 }
 
 type DataNodeGetRequest struct {
@@ -50,6 +49,17 @@ type NameNodePingResponse struct {
 	Ack bool
 }
 
+type DataNodeReNameRequest struct {
+	ReNameSrcPath  string
+	ReNameDestPath string
+}
+
+type DataNodeInstance struct {
+	Host        string //地址
+	ServicePort string //端口号
+}
+
+// Ping 维护dataNode的元数据信息：NameNodeHost，NameNodePort，同时测试调用rpc方法消息的应答
 func (dataNode *Service) Ping(request *NameNodePingRequest, reply *NameNodePingResponse) error {
 	dataNode.NameNodeHost = request.Host
 	dataNode.NameNodePort = request.Port
@@ -59,6 +69,7 @@ func (dataNode *Service) Ping(request *NameNodePingRequest, reply *NameNodePingR
 	return nil
 }
 
+// Heartbeat 心跳检测，用来检测rpc调用方法成功与否，来判断是否能获取heartbeat
 func (dataNode *Service) Heartbeat(request bool, response *bool) error {
 	if request {
 		log.Println("Received heartbeat from NameNode")
@@ -189,7 +200,7 @@ func (dataNode *Service) DeletePath(request *DataNodeDeleteRequest, reply *DataN
 }
 
 //DeleteFile 删除远端文件
-//// 输入：相对路径+BlockId 返回：执行成功与否
+//输入：相对路径+BlockId 返回：执行成功与否
 func (dataNode *Service) DeleteFile(request *DataNodeDeleteRequest, reply *DataNodeReplyStatus) error {
 	directory := dataNode.DataDirectory
 	//判断当前文件是否存在，不存在说明已经删除了，直接返回nil
@@ -206,11 +217,6 @@ func (dataNode *Service) DeleteFile(request *DataNodeDeleteRequest, reply *DataN
 		return nil
 	}
 	return errors.New("删除文件失败")
-}
-
-type DataNodeReNameRequest struct {
-	ReNameSrcPath  string
-	ReNameDestPath string
 }
 
 // ReNameDir 重命名文件目录

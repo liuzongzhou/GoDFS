@@ -15,7 +15,7 @@ import (
 // NameNodeMetaData nameNode的元数据，包含块id，块地址
 type NameNodeMetaData struct {
 	BlockId        string
-	BlockAddresses []util.DataNodeInstance //datanode的实例数组
+	BlockAddresses []datanode.DataNodeInstance //datanode的实例数组
 }
 
 type NameNodeReadRequest struct {
@@ -48,8 +48,8 @@ type NameNodeReNameRequest struct {
 }
 
 type NameNodeDeleteRequest struct {
-	Remote_file_path string
-	FileName         string
+	RemoteFilePath string
+	FileName       string
 }
 
 type ListMetaData struct {
@@ -70,11 +70,11 @@ type Service struct {
 	Port                uint16
 	BlockSize           uint64
 	ReplicationFactor   uint64
-	IdToDataNodes       map[uint64]util.DataNodeInstance
+	IdToDataNodes       map[uint64]datanode.DataNodeInstance
 	FileNameToBlocks    map[string][]string //key:path+filename
-	BlockToDataNodeIds  map[string][]uint64
-	FileNameSize        map[string]uint64 //文件大小  //key:path+filename
-	DirectoryToFileName map[string][]string
+	BlockToDataNodeIds  map[string][]uint64 //key:BlockId value：主+备份节点
+	FileNameSize        map[string]uint64   //文件大小 key:path+filename
+	DirectoryToFileName map[string][]string //目录下对应的文件 key:path value：该目录下所有文件名
 }
 
 func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *Service {
@@ -83,18 +83,19 @@ func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *
 		BlockSize:           blockSize,
 		ReplicationFactor:   replicationFactor,
 		FileNameToBlocks:    make(map[string][]string),
-		IdToDataNodes:       make(map[uint64]util.DataNodeInstance),
+		IdToDataNodes:       make(map[uint64]datanode.DataNodeInstance),
 		BlockToDataNodeIds:  make(map[string][]uint64),
 		FileNameSize:        make(map[string]uint64),
 		DirectoryToFileName: make(map[string][]string),
 	}
 }
 
-//随机选择存储节点，尽量做到负载均衡
+//selectRandomNumbers 随机选择存储节点，尽量做到负载均衡
 func selectRandomNumbers(dataNodesAvailable []uint64, replicationFactor uint64) (randomNumberSet []uint64) {
 	//当前已经选择的datanodeId,防止备份BlockId文件写再同一个节点上
 	numberPresentMap := make(map[uint64]bool)
 	for i := uint64(0); i < replicationFactor; {
+		//随机选择节点
 		datanodeId := dataNodesAvailable[rand.Intn(len(dataNodesAvailable))]
 		if _, ok := numberPresentMap[datanodeId]; !ok {
 			numberPresentMap[datanodeId] = true
@@ -105,6 +106,7 @@ func selectRandomNumbers(dataNodesAvailable []uint64, replicationFactor uint64) 
 	return
 }
 
+// GetBlockSize 获取存储的每个Block大小
 func (nameNode *Service) GetBlockSize(request bool, reply *uint64) error {
 	if request {
 		*reply = nameNode.BlockSize
@@ -120,7 +122,7 @@ func (nameNode *Service) ReadData(request *NameNodeReadRequest, reply *[]NameNod
 	fileBlocks := nameNode.FileNameToBlocks[request.FileName]
 	//遍历每个BlockId
 	for _, block := range fileBlocks {
-		var blockAddresses []util.DataNodeInstance
+		var blockAddresses []datanode.DataNodeInstance
 		//存储每个BlockId所有的datanodeId,包含备份的
 		targetDataNodeIds := nameNode.BlockToDataNodeIds[block]
 		for _, dataNodeId := range targetDataNodeIds {
@@ -165,7 +167,7 @@ func (nameNode *Service) WriteData(request *NameNodeWriteRequest, reply *[]NameN
 }
 
 //GetIdToDataNodes 获取当前存活的datanode元数据组信息：host+port
-func (nameNode *Service) GetIdToDataNodes(request *bool, reply *[]util.DataNodeInstance) error {
+func (nameNode *Service) GetIdToDataNodes(request *bool, reply *[]datanode.DataNodeInstance) error {
 	if *request {
 		for _, instance := range nameNode.IdToDataNodes {
 			*reply = append(*reply, instance)
@@ -176,7 +178,7 @@ func (nameNode *Service) GetIdToDataNodes(request *bool, reply *[]util.DataNodeI
 
 //DeleteMetaData 删除路径相关的元数据信息
 func (nameNode *Service) DeleteMetaData(request *NameNodeDeleteRequest, reply *bool) error {
-	ReMoteFilePath := request.Remote_file_path
+	ReMoteFilePath := request.RemoteFilePath
 	//遍历指定目录下的所有文件
 	for _, filename := range nameNode.DirectoryToFileName[ReMoteFilePath] {
 		//遍历指定文件名下的所有BlockId
@@ -197,7 +199,7 @@ func (nameNode *Service) DeleteMetaData(request *NameNodeDeleteRequest, reply *b
 
 //DeleteFileNameMetaData 删除文件相关的元数据信息
 func (nameNode *Service) DeleteFileNameMetaData(request *NameNodeDeleteRequest, reply *bool) error {
-	ReMoteFilePath := request.Remote_file_path
+	ReMoteFilePath := request.RemoteFilePath
 	fileName := request.FileName
 	//遍历指定文件名下的所有BlockId
 	for _, BlockId := range nameNode.FileNameToBlocks[ReMoteFilePath+fileName] {
@@ -211,9 +213,9 @@ func (nameNode *Service) DeleteFileNameMetaData(request *NameNodeDeleteRequest, 
 	//删除DirectoryToFileName[ReMoteFilePath]的value中filename的值，采取的方法是除filename以外遍历插入新的数组
 	filenames := nameNode.DirectoryToFileName[ReMoteFilePath]
 	var newfilenames []string
-	for _, filename := range filenames {
-		if filename != fileName {
-			newfilenames = append(newfilenames, filename)
+	for i, filename := range filenames {
+		if filename == fileName {
+			newfilenames = append(filenames[:i], filenames[i+1:]...)
 		}
 	}
 	//更新DirectoryToFileName[ReMoteFilePath] = newfilenames
@@ -240,7 +242,7 @@ func (nameNode *Service) allocateBlocks(fileName string, numberOfBlocks uint64) 
 		//维护FileNameToBlocks的元数据库信息
 		nameNode.FileNameToBlocks[fileName] = append(nameNode.FileNameToBlocks[fileName], blockId)
 
-		var blockAddresses []util.DataNodeInstance
+		var blockAddresses []datanode.DataNodeInstance
 		var replicationFactor uint64
 		// client设置的副本数大于可用的datanode节点数时，则副本数自动变成可用的节点数
 		if nameNode.ReplicationFactor > dataNodesAvailableCount {
@@ -270,7 +272,7 @@ func (nameNode *Service) assignDataNodes(blockId string, dataNodesAvailable []ui
 }
 
 // ReName 重命名文件目录
-func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]util.DataNodeInstance) error {
+func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]datanode.DataNodeInstance) error {
 	renameSrcPath := request.ReNameSrcPath
 	renameDestPath := request.ReNameDestPath
 	// 返回NameNodes的元数据信息
@@ -417,7 +419,7 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 
 		// initiate the replication of the block contents
 		targetDataNodeIds := nameNode.assignDataNodes(blockToReplicate.BlockId, availableNodes, nameNode.ReplicationFactor)
-		var blockAddresses []util.DataNodeInstance
+		var blockAddresses []datanode.DataNodeInstance
 		for _, dataNodeId := range targetDataNodeIds {
 			blockAddresses = append(blockAddresses, nameNode.IdToDataNodes[dataNodeId])
 		}
