@@ -165,7 +165,10 @@ func (dataNode *Service) MakeDir(request string, reply *DataNodeReplyStatus) err
 	return errors.New("创建目录失败")
 }
 
+// DeletePath 删除远端文件目录
+// 输入：相对路径 返回：执行成功与否
 func (dataNode *Service) DeletePath(request *DataNodeDeleteRequest, reply *DataNodeReplyStatus) error {
+	//每个datanode的根目录，根目录+相对路径才是完整路径
 	directory := dataNode.DataDirectory
 	//判断当前目录是否存在，不存在说明已经成功删除了，直接返回nil
 	_, err := os.Stat(directory + request.RemoteFilepath)
@@ -180,9 +183,13 @@ func (dataNode *Service) DeletePath(request *DataNodeDeleteRequest, reply *DataN
 		fmt.Println("删除目录成功") //可以删除成功
 		return nil
 	}
+	//删除目录失败，返回错误状态，以及错误信息
+	*reply = DataNodeReplyStatus{Status: false}
 	return errors.New("删除目录失败")
 }
 
+//DeleteFile 删除远端文件
+//// 输入：相对路径+BlockId 返回：执行成功与否
 func (dataNode *Service) DeleteFile(request *DataNodeDeleteRequest, reply *DataNodeReplyStatus) error {
 	directory := dataNode.DataDirectory
 	//判断当前文件是否存在，不存在说明已经删除了，直接返回nil

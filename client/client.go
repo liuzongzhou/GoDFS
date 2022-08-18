@@ -276,64 +276,88 @@ func List(nameNodeInstance *rpc.Client, remoteDirName string) (fileInfo map[stri
 	return
 }
 
+// DeletePath 删除远端文件目录
 func DeletePath(nameNodeInstance *rpc.Client, remote_file_path string) (deletePathStatus bool) {
 	var request = true
 	var reply []util.DataNodeInstance
+	//1.先得到当前存活的所有dataNodes节点信息
 	err := nameNodeInstance.Call("Service.GetIdToDataNodes", request, &reply)
 	util.Check(err)
-	//1.先删除datanode下对应的文件路径
-	for _, dataNodeInstance1 := range reply {
-		dataNodeInstance, rpcErr := rpc.Dial("tcp", dataNodeInstance1.Host+":"+dataNodeInstance1.ServicePort)
+	//2.删除datanode下对应的文件路径
+	for _, selectedDataNode := range reply {
+		dataNodeInstance, rpcErr := rpc.Dial("tcp", selectedDataNode.Host+":"+selectedDataNode.ServicePort)
+		//如果连接失败，可能当前datanode节点死亡，跳过
 		if rpcErr != nil {
+			log.Printf("DataNode %v : %v delete path fail,next datanode\n", selectedDataNode.Host, selectedDataNode.ServicePort)
 			continue
 		}
 		defer dataNodeInstance.Close()
 		var reply datanode.DataNodeReplyStatus
+		//包装delete请求数据
 		var request = datanode.DataNodeDeleteRequest{RemoteFilepath: remote_file_path}
+		//通过rpc调用DeletePath,返回删除成功与否
 		rpcErr = dataNodeInstance.Call("Service.DeletePath", request, &reply)
-		util.Check(rpcErr)
+		//rpc调用失败，打印错误信息，返回错误
+		if rpcErr != nil {
+			log.Println(rpcErr)
+			return false
+		}
 		deletePathStatus = reply.Status
 		//当出现错误时，说明某个节点删除失败，所以直接返回
 		if !deletePathStatus {
 			return
 		}
 	}
-	//2.删除路径成功，这个时候所有的block都删除了，需要处理namenode里面的缓存数据：
+	//3.删除路径成功，这个时候所有的block都删除了，需要处理nameNode里面的缓存数据：
 	//FileNameToBlocks,
 	//BlockToDataNodeIds,
 	//FileNameSize,
 	//DirectoryToFileName
 	var reply1 bool
 	var request1 = namenode.NameNodeDeleteRequest{Remote_file_path: remote_file_path}
+	//rpc 调用DeleteMetaData方法，删除相关元数据信息
 	err = nameNodeInstance.Call("Service.DeleteMetaData", request1, &reply1)
-	util.Check(err)
+	//rpc调用失败，打印错误信息，返回错误
+	if err != nil {
+		log.Println(err)
+		return false
+	}
 	deletePathStatus = reply1
 	return
 }
 
-func DeleteFile(nameNodeInstance *rpc.Client, remote_file_path string, filename string) (deleteFileStatus bool) {
-	request := namenode.NameNodeReadRequest{FileName: remote_file_path + filename}
+//DeleteFile 删除远端文件
+func DeleteFile(nameNodeInstance *rpc.Client, remoteFilePath string, filename string) (deleteFileStatus bool) {
+	request := namenode.NameNodeReadRequest{FileName: remoteFilePath + filename}
 	var reply []namenode.NameNodeMetaData
+	// 通过rpc调用 ReadData 读取文件对应的元数据数组
+	// 返回信息：BlockIds对应的BlockAddresses（datanode的host+port）
 	err := nameNodeInstance.Call("Service.ReadData", request, &reply)
-	util.Check(err)
+	//rpc调用失败，打印错误信息，返回错误
+	if err != nil {
+		log.Println(err)
+		return false
+	}
 	for _, metaData := range reply {
 		blockId := metaData.BlockId
 		blockAddresses := metaData.BlockAddresses
-
+		//每个BlockId对应多个BlockAddress，所以要遍历删除
 		for _, selectedDataNode := range blockAddresses {
 			dataNodeInstance, rpcErr := rpc.Dial("tcp", selectedDataNode.Host+":"+selectedDataNode.ServicePort)
+			//如果连接失败，可能当前datanode节点死亡，跳过
 			if rpcErr != nil {
+				log.Printf("DataNode %v : %v delete path fail,next datanode\n", selectedDataNode.Host, selectedDataNode.ServicePort)
 				continue
 			}
 
 			defer dataNodeInstance.Close()
 
 			request := datanode.DataNodeDeleteRequest{
-				RemoteFilepath: remote_file_path,
+				RemoteFilepath: remoteFilePath,
 				BlockId:        blockId,
 			}
 			var reply datanode.DataNodeReplyStatus
-
+			//通过rpc调用DeleteFile,返回删除成功与否
 			rpcErr = dataNodeInstance.Call("Service.DeleteFile", request, &reply)
 			util.Check(rpcErr)
 			deleteFileStatus = reply.Status
@@ -342,15 +366,19 @@ func DeleteFile(nameNodeInstance *rpc.Client, remote_file_path string, filename 
 			}
 		}
 	}
-	//2.删除所有的BlockId成功，需要处理namenode里面的缓存数据：
+	//2.删除所有的BlockId成功，需要处理nameNode里面的缓存数据：
 	//FileNameToBlocks,
 	//BlockToDataNodeIds,
 	//FileNameSize,
-	//DirectoryToFileName
+	//DirectoryToFileName value中的filename
 	var reply1 bool
-	var request1 = namenode.NameNodeDeleteRequest{Remote_file_path: remote_file_path, FileName: filename}
+	var request1 = namenode.NameNodeDeleteRequest{Remote_file_path: remoteFilePath, FileName: filename}
 	err = nameNodeInstance.Call("Service.DeleteFileNameMetaData", request1, &reply1)
-	util.Check(err)
+	//rpc调用失败，打印错误信息，返回错误
+	if err != nil {
+		log.Println(err)
+		return false
+	}
 	deleteFileStatus = reply1
 	return
 }

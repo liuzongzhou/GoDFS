@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// namenode的元数据，包含块id，块地址
+// NameNodeMetaData nameNode的元数据，包含块id，块地址
 type NameNodeMetaData struct {
 	BlockId        string
 	BlockAddresses []util.DataNodeInstance //datanode的实例数组
@@ -25,7 +25,7 @@ type NameNodeFileSize struct {
 	FileSize uint64
 }
 
-// NameNodeWriteRequest namenode写入请求
+// NameNodeWriteRequest nameNode写入请求
 type NameNodeWriteRequest struct {
 	RemoteFilePath string
 	FileName       string
@@ -149,32 +149,41 @@ func (nameNode *Service) GetIdToDataNodes(request *bool, reply *[]util.DataNodeI
 	return nil
 }
 
+//DeleteMetaData 删除路径相关的元数据信息
 func (nameNode *Service) DeleteMetaData(request *NameNodeDeleteRequest, reply *bool) error {
 	ReMoteFilePath := request.Remote_file_path
 	//遍历指定目录下的所有文件
 	for _, filename := range nameNode.DirectoryToFileName[ReMoteFilePath] {
+		//遍历指定文件名下的所有BlockId
 		for _, BlockId := range nameNode.FileNameToBlocks[ReMoteFilePath+filename] {
-			//删除这个BlockId的key
+			//删除BlockToDataNodeIds的这个key
 			delete(nameNode.BlockToDataNodeIds, BlockId)
 		}
+		//删除FileNameToBlocks的key：ReMoteFilePath+filename
 		delete(nameNode.FileNameToBlocks, ReMoteFilePath+filename)
+		//删除FileNameSize的key：ReMoteFilePath+filename
 		delete(nameNode.FileNameSize, ReMoteFilePath+filename)
 	}
+	//删除DirectoryToFileName的key：ReMoteFilePath
 	delete(nameNode.DirectoryToFileName, ReMoteFilePath)
 	*reply = true
 	return nil
 }
 
+//DeleteFileNameMetaData 删除文件相关的元数据信息
 func (nameNode *Service) DeleteFileNameMetaData(request *NameNodeDeleteRequest, reply *bool) error {
 	ReMoteFilePath := request.Remote_file_path
 	fileName := request.FileName
-	//遍历指定目录下的所有文件
+	//遍历指定文件名下的所有BlockId
 	for _, BlockId := range nameNode.FileNameToBlocks[ReMoteFilePath+fileName] {
-		//删除这个BlockId的key
+		//删除BlockToDataNodeIds的这个key
 		delete(nameNode.BlockToDataNodeIds, BlockId)
 	}
+	//删除FileNameToBlocks的key：ReMoteFilePath+filename
 	delete(nameNode.FileNameToBlocks, ReMoteFilePath+fileName)
+	//删除FileNameSize的key：ReMoteFilePath+filename
 	delete(nameNode.FileNameSize, ReMoteFilePath+fileName)
+	//删除DirectoryToFileName[ReMoteFilePath]的value中filename的值，采取的方法是除filename以外遍历插入新的数组
 	filenames := nameNode.DirectoryToFileName[ReMoteFilePath]
 	var newfilenames []string
 	for _, filename := range filenames {
@@ -182,6 +191,7 @@ func (nameNode *Service) DeleteFileNameMetaData(request *NameNodeDeleteRequest, 
 			newfilenames = append(newfilenames, filename)
 		}
 	}
+	//更新DirectoryToFileName[ReMoteFilePath] = newfilenames
 	nameNode.DirectoryToFileName[ReMoteFilePath] = newfilenames
 	*reply = true
 	return nil
