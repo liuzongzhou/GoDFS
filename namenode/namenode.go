@@ -175,7 +175,14 @@ func (nameNode *Service) DeleteFileNameMetaData(request *NameNodeDeleteRequest, 
 	}
 	delete(nameNode.FileNameToBlocks, ReMoteFilePath+fileName)
 	delete(nameNode.FileNameSize, ReMoteFilePath+fileName)
-	delete(nameNode.DirectoryToFileName, ReMoteFilePath)
+	filenames := nameNode.DirectoryToFileName[ReMoteFilePath]
+	var newfilenames []string
+	for _, filename := range filenames {
+		if filename != fileName {
+			newfilenames = append(newfilenames, filename)
+		}
+	}
+	nameNode.DirectoryToFileName[ReMoteFilePath] = newfilenames
 	*reply = true
 	return nil
 }
