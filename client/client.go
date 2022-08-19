@@ -3,7 +3,6 @@ package client
 import (
 	"github.com/liuzongzhou/GoDFS/datanode"
 	"github.com/liuzongzhou/GoDFS/namenode"
-	"github.com/liuzongzhou/GoDFS/util"
 	"log"
 	"net/rpc"
 	"os"
@@ -57,7 +56,10 @@ func Put(nameNodeInstance *rpc.Client, sourcePath string, fileName string, remot
 	dataStagingBytes := make([]byte, blockSize)
 	for _, metaData := range reply {
 		n, err := fileHandler.Read(dataStagingBytes)
-		util.Check(err)
+		if err != nil {
+			log.Println(err)
+			return false
+		}
 		//append形式读取blocksize大小的文件
 		dataStagingBytes = dataStagingBytes[:n]
 		//要存取的blockId
@@ -377,7 +379,7 @@ func DeleteFile(nameNodeInstance *rpc.Client, remoteFilePath string, filename st
 			dataNodeInstance, rpcErr := rpc.Dial("tcp", selectedDataNode.Host+":"+selectedDataNode.ServicePort)
 			//如果连接失败，可能当前datanode节点死亡，跳过
 			if rpcErr != nil {
-				log.Printf("DataNode %v : %v delete path fail,next datanode\n", selectedDataNode.Host, selectedDataNode.ServicePort)
+				log.Printf("DataNode %v : %v delete file fail,next datanode\n", selectedDataNode.Host, selectedDataNode.ServicePort)
 				continue
 			}
 
@@ -390,7 +392,10 @@ func DeleteFile(nameNodeInstance *rpc.Client, remoteFilePath string, filename st
 			var reply datanode.DataNodeReplyStatus
 			//通过rpc调用DeleteFile,返回删除成功与否
 			rpcErr = dataNodeInstance.Call("Service.DeleteFile", request, &reply)
-			util.Check(rpcErr)
+			if err != nil {
+				log.Println(rpcErr)
+				return false
+			}
 			deleteFileStatus = reply.Status
 			if !deleteFileStatus {
 				return

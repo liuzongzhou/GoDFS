@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/liuzongzhou/GoDFS/datanode"
 	"github.com/liuzongzhou/GoDFS/namenode"
-	"github.com/liuzongzhou/GoDFS/util"
 	"log"
 	"net"
 	"net/rpc"
@@ -60,7 +59,10 @@ func discoverDataNodes(nameNodeInstance *namenode.Service, listOfDataNodes *[]st
 	// 维护nameNode中IdToDataNodes的元数据信息
 	for i = 0; i < availableNumberOfDataNodes; i++ {
 		host, port, err := net.SplitHostPort((*listOfDataNodes)[i])
-		util.Check(err)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
 		dataNodeInstance := datanode.DataNodeInstance{Host: host, ServicePort: port}
 		nameNodeInstance.IdToDataNodes[uint64(i)] = dataNodeInstance
 	}
@@ -69,9 +71,9 @@ func discoverDataNodes(nameNodeInstance *namenode.Service, listOfDataNodes *[]st
 }
 
 // InitializeNameNodeUtil 初始化nameNode节点进程
-func InitializeNameNodeUtil(serverPort int, blockSize int, replicationFactor int, listOfDataNodes []string) {
+func InitializeNameNodeUtil(serverHost string, serverPort int, blockSize int, replicationFactor int, listOfDataNodes []string) {
 	// 生成nameNode实例
-	nameNodeInstance := namenode.NewService(uint64(blockSize), uint64(replicationFactor), uint16(serverPort))
+	nameNodeInstance := namenode.NewService(serverHost, uint64(blockSize), uint64(replicationFactor), uint16(serverPort))
 	// 发现当前存在的dataNodes或者终端给的，并维护到listOfDataNodes
 	err := discoverDataNodes(nameNodeInstance, &listOfDataNodes)
 	if err != nil {

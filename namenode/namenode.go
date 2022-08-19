@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/google/uuid"
 	"github.com/liuzongzhou/GoDFS/datanode"
-	"github.com/liuzongzhou/GoDFS/util"
 	"log"
 	"math"
 	"math/rand"
@@ -67,6 +66,7 @@ type NameNodeReNameFileRequest struct {
 }
 
 type Service struct {
+	Host                string
 	Port                uint16
 	BlockSize           uint64
 	ReplicationFactor   uint64
@@ -77,8 +77,9 @@ type Service struct {
 	DirectoryToFileName map[string][]string //目录下对应的文件 key:path value：该目录下所有文件名
 }
 
-func NewService(blockSize uint64, replicationFactor uint64, serverPort uint16) *Service {
+func NewService(serverHost string, blockSize uint64, replicationFactor uint64, serverPort uint16) *Service {
 	return &Service{
+		Host:                serverHost,
 		Port:                serverPort,
 		BlockSize:           blockSize,
 		ReplicationFactor:   replicationFactor,
@@ -262,7 +263,7 @@ func (nameNode *Service) allocateBlocks(fileName string, numberOfBlocks uint64) 
 	return
 }
 
-// assignDataNodes 具体安排这个BlockId文件存在哪些datanodes(包含备份)
+// assignDataNodes 具体安排这个BlockId文件存在哪些dataNodes(包含备份)
 func (nameNode *Service) assignDataNodes(blockId string, dataNodesAvailable []uint64, replicationFactor uint64) []uint64 {
 	//随机选择存储节点，尽量做到负载均衡
 	targetDataNodeIds := selectRandomNumbers(dataNodesAvailable, replicationFactor)
@@ -302,6 +303,10 @@ func (nameNode *Service) ReName(request *NameNodeReNameRequest, reply *[]datanod
 			nameNode.FileNameSize[fileName] = FileSize
 		}
 	}
+	// 修改目录下文件的元数据信息（文件绝对路径Directory和FileName的映射关系）
+	fileNames := nameNode.DirectoryToFileName[renameSrcPath]
+	delete(nameNode.DirectoryToFileName, renameSrcPath)
+	nameNode.DirectoryToFileName[renameDestPath] = fileNames
 	return nil
 }
 
@@ -319,6 +324,29 @@ func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *b
 	delete(nameNode.FileNameSize, ReNameSrcFileName)
 	// 修改文件绝对路径FileName和FileSize的映射关系
 	nameNode.FileNameSize[ReNameDestFileName] = FileSize
+
+	// 处理路径+文件名的字符串
+	split := strings.Split(ReNameSrcFileName, "/")
+	split1 := strings.Split(ReNameDestFileName, "/")
+	// 得到srcFileName
+	srcFileName := split[len(split)-1]
+	// 得到destFileName
+	destFileName := split1[len(split1)-1]
+	// 得到path
+	var directory string
+	for i := 0; i < len(split)-1; i++ {
+		directory += split[i] + "/"
+	}
+	// 修改目录下文件的元数据信息（文件绝对路径Directory和FileName的映射关系）
+	filenames := nameNode.DirectoryToFileName[directory]
+	for i, filename := range filenames {
+		if filename == srcFileName {
+			filenames[i] = destFileName
+			nameNode.DirectoryToFileName[directory] = filenames
+			break
+		}
+	}
+
 	*reply = true
 	return nil
 }
@@ -326,64 +354,72 @@ func (nameNode *Service) ReNameFile(request *NameNodeReNameFileRequest, reply *b
 // List 罗列出文件夹中的文件信息
 func (nameNode *Service) List(request *NameNodeListRequest, reply *[]ListMetaData) error {
 	RemoteDirPath := request.RemoteDirPath
-	// 获取当前目录下文件的元数据信息
-	for fileName, FileSize := range nameNode.FileNameSize {
-		if strings.HasPrefix(fileName, RemoteDirPath) {
-			// 追加的形式返回文件元数据列表
-			*reply = append(*reply, ListMetaData{FileName: fileName, FileSize: FileSize})
-		}
+	//获取当前目录下的所有文件名
+	filenames := nameNode.DirectoryToFileName[RemoteDirPath]
+	//遍历这些文件，获取文件的元数据信息
+	for _, filename := range filenames {
+		filesize := nameNode.FileNameSize[RemoteDirPath+filename]
+		// 追加的形式返回文件元数据列表
+		*reply = append(*reply, ListMetaData{FileName: filename, FileSize: filesize})
 	}
 	return nil
 }
 
+// ReDistributeData 当有dataNode节点dead，将死亡的节点上的数据进行备份，并重新分配节点（主+备）写入
 func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, reply *bool) error {
 	log.Printf("DataNode %s is dead, trying to redistribute data\n", request.DataNodeUri)
 	deadDataNodeSlice := strings.Split(request.DataNodeUri, ":")
 	var deadDataNodeId uint64
 
-	// de-register the dead DataNode from IdToDataNodes meta
+	// 遍历元数据IdToDataNodes，确定是IdToDataNodes哪个key：Id是dead的节点
 	for id, dn := range nameNode.IdToDataNodes {
 		if dn.Host == deadDataNodeSlice[0] && dn.ServicePort == deadDataNodeSlice[1] {
 			deadDataNodeId = id
 			break
 		}
 	}
+	//维护元数据IdToDataNodes，删除dead的key-value
 	delete(nameNode.IdToDataNodes, deadDataNodeId)
 
-	// construct under-replicated blocks list and
-	// de-register the block entirely in favour of re-creation
+	//创建需要复制块列表
 	var underReplicatedBlocksList []UnderReplicatedBlocks
+	// 遍历BlockToDataNodeIds，得到blockId：{对应的dataNodes}
 	for blockId, dnIds := range nameNode.BlockToDataNodeIds {
 		for i, dnId := range dnIds {
+			//当blockId中的dataNodes匹配上deadDataNodeId时，记录1个备份的DataNodeId作为healthyDataNodeId
+			//并跳出循环，因为一个节点的BlockId损坏指挥匹配一个DataNodeId
 			if dnId == deadDataNodeId {
+				//备份的DataNodeId有多个，都存在BlockToDataNodeIds[blockId]，如果是坏的恰好是最后一个就会有问题，所以取余
 				healthyDataNodeId := nameNode.BlockToDataNodeIds[blockId][(i+1)%len(dnIds)]
+				//包装UnderReplicatedBlocks{blockId，备份的节点Id}
 				underReplicatedBlocksList = append(
 					underReplicatedBlocksList,
 					UnderReplicatedBlocks{blockId, healthyDataNodeId},
 				)
-				delete(nameNode.BlockToDataNodeIds, blockId)
-				// TODO: trigger data deletion on the existing data nodes
 				break
 			}
 		}
 	}
 
-	// verify if re-replication would be possible
+	// 判断当前可用dataNodes节点数是否足够
 	if len(nameNode.IdToDataNodes) < int(nameNode.ReplicationFactor) {
 		log.Println("Replication not possible due to unavailability of sufficient DataNode(s)")
 		return nil
 	}
 
+	// 获取当前可用的dataNodesId
 	var availableNodes []uint64
 	for k, _ := range nameNode.IdToDataNodes {
 		availableNodes = append(availableNodes, k)
 	}
 
-	// attempt re-replication of under-replicated blocks
+	// 遍历需要复制块列表
 	for _, blockToReplicate := range underReplicatedBlocksList {
 		var remoteFilePath string
 		flag := false
+		// 只有要复制的BlockId，要得到文件的有效的路径名（不包含文件名），为了读取数据BlockId中的数据
 		for filename, fileblockIds := range nameNode.FileNameToBlocks {
+			// 遍历每个文件对应的fileblockIds，当要复制的BlockId与其匹配时，当前的filename:path+name 就是路径
 			for _, id := range fileblockIds {
 				if blockToReplicate.BlockId == id {
 					flag = true
@@ -391,6 +427,7 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 				}
 			}
 			if flag {
+				// 将filename切分，得到只含路径名
 				split := strings.Split(filename, "/")
 				for i := 0; i < len(split)-1; i++ {
 					remoteFilePath += split[i] + "/"
@@ -398,10 +435,11 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 				break
 			}
 		}
-		// fetch the data from the healthy DataNode
+		// 从要复制的节点读取数据
 		healthyDataNode := nameNode.IdToDataNodes[blockToReplicate.HealthyDataNodeId]
 		dataNodeInstance, rpcErr := rpc.Dial("tcp", healthyDataNode.Host+":"+healthyDataNode.ServicePort)
 		if rpcErr != nil {
+			log.Println(rpcErr)
 			continue
 		}
 
@@ -414,20 +452,54 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 		var getReply datanode.DataNodeData
 
 		rpcErr = dataNodeInstance.Call("Service.GetData", getRequest, &getReply)
-		util.Check(rpcErr)
+		if rpcErr != nil {
+			log.Println(rpcErr)
+			continue
+		}
+		// 存放BlockId读取的数据
 		blockContents := getReply.Data
 
-		// initiate the replication of the block contents
+		// 1.删除原存在的这个BlockId数据,因为备份不止一块，所以需要遍历删除
+		ids := nameNode.BlockToDataNodeIds[blockToReplicate.BlockId]
+		for _, dataNodeId := range ids {
+			dataNode := nameNode.IdToDataNodes[dataNodeId]
+			dataNodeInstance, rpcErr := rpc.Dial("tcp", dataNode.Host+":"+dataNode.ServicePort)
+			if rpcErr != nil {
+				continue
+			}
+			defer dataNodeInstance.Close()
+			request := datanode.DataNodeDeleteRequest{
+				RemoteFilepath: remoteFilePath,
+				BlockId:        blockToReplicate.BlockId,
+			}
+			var reply datanode.DataNodeReplyStatus
+			//通过rpc调用DeleteFile
+			rpcErr = dataNodeInstance.Call("Service.DeleteFile", request, &reply)
+			if rpcErr != nil {
+				log.Println(rpcErr)
+			}
+		}
+
+		//2.删除原存在的这个BlockId数据成功，重新写入数据给节点,更新BlockToDataNodeIds元数据
+		//分配给哪些节点，得到目标节点
 		targetDataNodeIds := nameNode.assignDataNodes(blockToReplicate.BlockId, availableNodes, nameNode.ReplicationFactor)
+		//更新BlockToDataNodeIds元数据，不涉及其他元数据的变更，只是BlockId与dataNodes的映射
+		nameNode.BlockToDataNodeIds[blockToReplicate.BlockId] = targetDataNodeIds
 		var blockAddresses []datanode.DataNodeInstance
+		// 依次生成写入dataNode地址
 		for _, dataNodeId := range targetDataNodeIds {
 			blockAddresses = append(blockAddresses, nameNode.IdToDataNodes[dataNodeId])
 		}
+		// 主节点
 		startingDataNode := blockAddresses[0]
+		// 剩余备份节点
 		remainingDataNodes := blockAddresses[1:]
 
 		targetDataNodeInstance, rpcErr := rpc.Dial("tcp", startingDataNode.Host+":"+startingDataNode.ServicePort)
-		util.Check(rpcErr)
+		if rpcErr != nil {
+			log.Println(rpcErr)
+			continue
+		}
 		defer targetDataNodeInstance.Close()
 
 		putRequest := datanode.DataNodePutRequest{
@@ -437,10 +509,13 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 			ReplicationNodes: remainingDataNodes,
 		}
 		var putReply datanode.DataNodeReplyStatus
-
+		// 将数据写入对用的节点
 		rpcErr = targetDataNodeInstance.Call("Service.PutData", putRequest, &putReply)
-		util.Check(rpcErr)
-
+		if rpcErr != nil {
+			log.Println(rpcErr)
+			continue
+		}
+		// 打印重新分配的数据的写入分布情况
 		log.Printf("Block %s replication completed for %+v\n", blockToReplicate.BlockId, targetDataNodeIds)
 	}
 
