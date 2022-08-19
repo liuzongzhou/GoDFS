@@ -77,7 +77,7 @@ func main() {
 			log.Println(mkdirHandler)
 			// 查看文件元数据：文件名+文件大小，并打印输出，如不存在打印
 		} else if *clientOperationPtr == "stat" {
-			filename, filesize := client.Stat(*clientNameNodePortPtr, *clientRemotefilepath, *clientFilenamePtr)
+			filename, filesize := client.StatHandler(*clientNameNodePortPtr, *clientRemotefilepath, *clientFilenamePtr)
 			if filename == "" {
 				log.Printf("%v :文件不存在\n", *clientFilenamePtr)
 			} else {

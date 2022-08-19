@@ -59,7 +59,7 @@ func MkdirHandler(nameNodeAddress string, remoteFilePath string) bool {
 	return client.Mkdir(rpcClient, remoteFilePath)
 }
 
-func Stat(nameNodeAddress string, remote_file_path string, fileName string) (filename string, filesize uint64) {
+func StatHandler(nameNodeAddress string, remote_file_path string, fileName string) (filename string, filesize uint64) {
 	rpcClient, err := initializeClientUtil(nameNodeAddress)
 	if err != nil {
 		log.Println(err)
