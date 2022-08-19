@@ -71,9 +71,9 @@ func discoverDataNodes(nameNodeInstance *namenode.Service, listOfDataNodes *[]st
 }
 
 // InitializeNameNodeUtil 初始化nameNode节点进程
-func InitializeNameNodeUtil(serverHost string, serverPort int, blockSize int, replicationFactor int, listOfDataNodes []string) {
+func InitializeNameNodeUtil(primaryPort string, serverHost string, serverPort int, blockSize int, replicationFactor int, listOfDataNodes []string) {
 	// 生成nameNode实例
-	nameNodeInstance := namenode.NewService(serverHost, uint64(blockSize), uint64(replicationFactor), uint16(serverPort))
+	nameNodeInstance := namenode.NewService(primaryPort, serverHost, uint64(blockSize), uint64(replicationFactor), uint16(serverPort))
 	// 发现当前存在的dataNodes或者终端给的，并维护到listOfDataNodes
 	err := discoverDataNodes(nameNodeInstance, &listOfDataNodes)
 	if err != nil {
@@ -102,6 +102,12 @@ func InitializeNameNodeUtil(serverHost string, serverPort int, blockSize int, re
 	nameNodeInstance.Port = uint16(serverPort - 1)
 	defer listener.Close()
 
+	//当端口号不是主节点端口号时，说明是备份nameNode节点，开启协程进行元数据间的备份
+	atoi, _ := strconv.Atoi(nameNodeInstance.PrimaryPort)
+	if nameNodeInstance.Port != uint16(atoi) {
+		go ReplicationnameNode(nameNodeInstance)
+	}
+
 	log.Printf("BlockSize is %d\n", blockSize)
 	log.Printf("Replication Factor is %d\n", replicationFactor)
 	log.Printf("List of DataNode(s) in service is %q\n", listOfDataNodes)
@@ -110,6 +116,36 @@ func InitializeNameNodeUtil(serverHost string, serverPort int, blockSize int, re
 	//采纳这个连接
 	rpc.Accept(listener)
 
+}
+
+// ReplicationnameNode 同步主nameNode节点的元数据信息：FileNameToBlocks，IdToDataNodes，BlockToDataNodeIds
+// FileNameSize,DirectoryToFileName
+func ReplicationnameNode(nameNode *namenode.Service) {
+	//开启定时任务，每隔1s进行一次元数据同步
+	for range time.Tick(time.Second * 1) {
+		//与主节点建立rpc连接，当连接不上时说明主节点挂了，不需要再同步，直接使用备份节点进行操作，并将备份节点升级成为主节点
+		nameNodeInstance, err := rpc.Dial("tcp", "localhost:"+nameNode.PrimaryPort)
+		if err != nil {
+			log.Println("primary nameNode is dead,second nameNode become primary nameNode")
+			nameNode.PrimaryPort = strconv.FormatUint(uint64(nameNode.Port), 10)
+			log.Printf("now primary nameNode port is %s\n", nameNode.PrimaryPort)
+			return
+		}
+		request := true
+		var reply namenode.Service
+		//通过rpc调用同步nameNode元数据方法,返回元数据
+		err = nameNodeInstance.Call("Service.ReplicationnameNode", request, &reply)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		//更新备份nameNode的元数据信息
+		nameNode.FileNameToBlocks = reply.FileNameToBlocks
+		nameNode.IdToDataNodes = reply.IdToDataNodes
+		nameNode.BlockToDataNodeIds = reply.BlockToDataNodeIds
+		nameNode.FileNameSize = reply.FileNameSize
+		nameNode.DirectoryToFileName = reply.DirectoryToFileName
+	}
 }
 
 // heartbeatToDataNodes nameNode与dataNodes实现心跳检测

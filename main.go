@@ -18,12 +18,13 @@ func main() {
 	//dataNode相关参数：端口，根目录
 	dataNodePortPtr := dataNodeCommand.Int("port", 7000, "DataNode communication port")
 	dataNodeDataLocationPtr := dataNodeCommand.String("data-location", ".", "DataNode data storage location")
-	//nameNode相关参数：地址，端口，根目录，管理的dataNodes列表，文件块大小，备份总数（主+备）
+	//nameNode相关参数：地址，端口，根目录，管理的dataNodes列表，文件块大小，备份总数（主+备），当前主端口
 	nameNodeHostPtr := nameNodeCommand.String("host", "localhost", "NameNode communication host")
 	nameNodePortPtr := nameNodeCommand.Int("port", 9000, "NameNode communication port")
 	nameNodeListPtr := nameNodeCommand.String("datanodes", "", "Comma-separated list of DataNodes to connect to")
 	nameNodeBlockSizePtr := nameNodeCommand.Int("block-size", 32, "Block size to store")
 	nameNodeReplicationFactorPtr := nameNodeCommand.Int("replication-factor", 1, "Replication factor of the system")
+	nameNodePrimaryPortPtr := nameNodeCommand.String("primary-port", "9000", "Primary NameNode port")
 	//client相关参数：通过哪个nameNode端口操作，操作行为分类，本地文件路径，文件名，远端文件路径，下载文件路径，重命名原始路径，重命名目标路径，list目标路径
 	clientNameNodePortPtr := clientCommand.String("namenode", "localhost:9000", "NameNode communication port")
 	clientOperationPtr := clientCommand.String("operation", "", "Operation to perform")
@@ -57,9 +58,7 @@ func main() {
 			listOfDataNodes = []string{}
 
 		}
-		//建立nameNode节点进程，当不指定端口时默认9000，当端口被占用，自动+1，直到有空的端口可以被使用，可以建立多个nameNode节点实现高可用，
-		//TODO 元数据共享
-		namenode.InitializeNameNodeUtil(*nameNodeHostPtr, *nameNodePortPtr, *nameNodeBlockSizePtr, *nameNodeReplicationFactorPtr, listOfDataNodes)
+		namenode.InitializeNameNodeUtil(*nameNodePrimaryPortPtr, *nameNodeHostPtr, *nameNodePortPtr, *nameNodeBlockSizePtr, *nameNodeReplicationFactorPtr, listOfDataNodes)
 
 	case "client":
 		_ = clientCommand.Parse(os.Args[2:])

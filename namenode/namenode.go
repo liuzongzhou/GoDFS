@@ -66,6 +66,7 @@ type NameNodeReNameFileRequest struct {
 }
 
 type Service struct {
+	PrimaryPort         string
 	Host                string
 	Port                uint16
 	BlockSize           uint64
@@ -77,8 +78,9 @@ type Service struct {
 	DirectoryToFileName map[string][]string //目录下对应的文件 key:path value：该目录下所有文件名
 }
 
-func NewService(serverHost string, blockSize uint64, replicationFactor uint64, serverPort uint16) *Service {
+func NewService(primaryPort string, serverHost string, blockSize uint64, replicationFactor uint64, serverPort uint16) *Service {
 	return &Service{
+		PrimaryPort:         primaryPort,
 		Host:                serverHost,
 		Port:                serverPort,
 		BlockSize:           blockSize,
@@ -89,6 +91,21 @@ func NewService(serverHost string, blockSize uint64, replicationFactor uint64, s
 		FileNameSize:        make(map[string]uint64),
 		DirectoryToFileName: make(map[string][]string),
 	}
+}
+
+// ReplicationnameNode 获取主nameNode节点的元数据信息：FileNameToBlocks，IdToDataNodes，BlockToDataNodeIds，FileNameSize,DirectoryToFileName
+func (nameNode *Service) ReplicationnameNode(request *bool, reply *Service) error {
+	if *request {
+		*reply = Service{
+			IdToDataNodes:       nameNode.IdToDataNodes,
+			FileNameSize:        nameNode.FileNameSize,
+			BlockToDataNodeIds:  nameNode.BlockToDataNodeIds,
+			FileNameToBlocks:    nameNode.FileNameToBlocks,
+			DirectoryToFileName: nameNode.DirectoryToFileName,
+		}
+		return nil
+	}
+	return errors.New("获取元数据失败")
 }
 
 //selectRandomNumbers 随机选择存储节点，尽量做到负载均衡
