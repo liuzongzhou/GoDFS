@@ -131,6 +131,7 @@ func ReplicationnameNode(nameNode *namenode.Service) {
 			log.Printf("now primary nameNode port is %s\n", nameNode.PrimaryPort)
 			return
 		}
+		defer nameNodeInstance.Close()
 		request := true
 		var reply namenode.Service
 		//通过rpc调用同步nameNode元数据方法,返回元数据
@@ -161,6 +162,13 @@ func heartbeatToDataNodes(listOfDataNodes []string, nameNode *namenode.Service) 
 				log.Printf("Unable to connect to node %s\n", hostPort)
 				var reply bool
 				// 断连了，需要重新分配数据，将断连节点上的数据进行备份
+				// 因为存在备份nameNode节点，防止两个nameNode同时操作数据，导致数据重复，需要鉴权
+				//如果当前nameNode节点不是主节点，则不做任何操作
+				atoi, _ := strconv.Atoi(nameNode.PrimaryPort)
+				if nameNode.Port != uint16(atoi) {
+					listOfDataNodes = removeElementFromSlice(listOfDataNodes, i)
+					continue
+				}
 				reDistributeError := nameNode.ReDistributeData(&namenode.ReDistributeDataRequest{DataNodeUri: hostPort}, &reply)
 				if reDistributeError != nil {
 					log.Println(reDistributeError)

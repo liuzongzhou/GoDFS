@@ -79,19 +79,26 @@ go build -o godfs.exe main.go
 **基础功能演示**
 
 <a href="https://github.com/liuzongzhou/GoDFS.git">
-    <img src="images/1.png" alt="Logo" width="200" height="400">
-    <img src="images/2.png" alt="Logo" width="200" height="400">
-    <img src="images/3.png" alt="Logo" width="200" height="400">
-    <img src="images/4.png" alt="Logo" width="200" height="400">
+    <img src="images/startdatanode.jpg" alt="Logo" width="600" height="100">
+    <img src="images/startnamenode.jpg" alt="Logo" width="600" height="100">
+    <img src="images/mkdir.jpg" alt="Logo" width="600" height="100">
+    <img src="images/put.jpg" alt="Logo" width="600" height="100">
+    <img src="images/get.jpg" alt="Logo" width="600" height="100">
+    <img src="images/stat.jpg" alt="Logo" width="600" height="100">
+    <img src="images/list.jpg" alt="Logo" width="600" height="100">
+    <img src="images/renamefile.jpg" alt="Logo" width="600" height="100">
+    <img src="images/renamepath.jpg" alt="Logo" width="600" height="100">
+    <img src="images/deletefile.jpg" alt="Logo" width="600" height="100">
+    <img src="images/deletepath.jpg" alt="Logo" width="600" height="100">
 </a>
 
 **拓展功能演示**
 
 <a href="https://github.com/liuzongzhou/GoDFS.git">
-    <img src="images/5.png" alt="Logo" width="200" height="400">
-    <img src="images/6.png" alt="Logo" width="200" height="400">
-    <img src="images/7.png" alt="Logo" width="200" height="400">
-    <img src="images/8.png" alt="Logo" width="200" height="400">
+    <img src="images/heartbeat.jpg" alt="Logo" width="600" height="100">
+    <img src="images/discoverdatanodes.jpg" alt="Logo" width="600" height="100">
+    <img src="images/redistribute.jpg" alt="Logo" width="600" height="100">
+    <img src="images/secondnamenode.jpg" alt="Logo" width="600" height="100">
 </a>
 
 
@@ -99,7 +106,7 @@ go build -o godfs.exe main.go
 [![Watch the video](images/video.png)](http://43.138.25.60/tiktok.mp4)
 
 #### 命令行使用手册
-
+注：所有命令均可直接点击左侧绿色箭头直接运行
 - **DataNode daemon**
   Syntax:
 - data-location为该DataNode节点分配的根目录
@@ -177,7 +184,7 @@ go build -o godfs.exe main.go
     
   - **List** operation
     Syntax:
-  - remote_dir_path 远端存储目标路径，也是相对路径不要加根目录
+    - remote_dir_path 远端存储目标路径，也是相对路径不要加根目录
     ```bash
     ./godfs client --namenode <host:priamryPort> --operation list --remote_dir_path <remote_dir_path> 
     ```
@@ -188,8 +195,8 @@ go build -o godfs.exe main.go
     
   - **Rename** operation
     Syntax:
-  - rename_src_name是相对路径：远端原路径或者远端原路径+文件名
-  - rename_dest_name是相对路径：远端重命名路径或者远端原路径+重命名文件
+    - rename_src_name是相对路径：远端原路径或者远端原路径+文件名
+    - rename_dest_name是相对路径：远端重命名路径或者远端原路径+重命名文件
     ```bash
     ./godfs client --namenode <host:priamryPort> --operation rename --rename_src_name <rename_src_name> --rename_dest_name <rename_dest_name>
     ```
@@ -206,8 +213,8 @@ go build -o godfs.exe main.go
     
   - **Deletefile** operation
     Syntax:
-  - remotefilepath是相对路径：远端目录路径
-  - filename 文件名
+    - remotefilepath是相对路径：远端目录路径
+    - filename 文件名
     ```bash
     ./godfs client --namenode <host:priamryPort> --operation deletefile --remotefilepath <remotefilepath> --filename <filename>
     ```
@@ -218,8 +225,8 @@ go build -o godfs.exe main.go
 
   - **Deletepath** operation
     Syntax:
-  - remotefilepath是相对路径：远端目录路径
-  - filename 文件名
+    - remotefilepath是相对路径：远端目录路径
+    - filename 文件名
     ```bash
     ./godfs client --namenode <host:priamryPort> --operation deletepath --remotefilepath <rename_src_name>
     ```
@@ -259,21 +266,21 @@ GoDFS
 #### Client架构的设计
 <p align="center">
   <a href="https://github.com/liuzongzhou/GoDFS.git">
-    <img src="images/client.png" alt="Logo" width="1000" height="600">
+    <img src="images/client.png" alt="Logo" width="1000" height="800">
   </a>
 </p>
 
 #### NameNode架构的设计
 <p align="center">
   <a href="https://github.com/liuzongzhou/GoDFS.git">
-    <img src="images/redis.jpg" alt="Logo" width="1000" height="600">
+    <img src="images/NameNode.jpg" alt="Logo" width="1000" height="800">
   </a>
 </p>
 
 #### DataNode架构的设计
 <p align="center">
   <a href="https://github.com/liuzongzhou/GoDFS.git">
-    <img src="images/rabbitmq.jpg" alt="Logo" width="1000" height="600">
+    <img src="images/DataNode.jpg" alt="Logo" width="1000" height="800">
   </a>
 </p>
 
@@ -367,7 +374,7 @@ RPC相关：
 
 ### 鸣谢
 
-- [字节跳动后端青训营](https://youthcamp.bytedance.com/)
+- [字节跳动大数据青训营](https://youthcamp.bytedance.com/)
 
 <!-- links -->
 

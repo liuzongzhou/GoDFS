@@ -2,10 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/liuzongzhou/GoDFS/daemon/client"
 	"github.com/liuzongzhou/GoDFS/daemon/datanode"
 	"github.com/liuzongzhou/GoDFS/daemon/namenode"
-	"log"
 	"os"
 	"strings"
 )
@@ -38,7 +38,7 @@ func main() {
 
 	//判断命令参数的传入，至少要2个参数，不然非法
 	if len(os.Args) < 2 {
-		log.Println("sub-command is required")
+		fmt.Println("==> sub-command is required")
 		os.Exit(1)
 	}
 	//匹配第一个参数，区分是哪种命令
@@ -65,22 +65,22 @@ func main() {
 		//上传文件，返回操作结果
 		if *clientOperationPtr == "put" {
 			status := client.PutHandler(*clientNameNodePortPtr, *clientSourcePathPtr, *clientFilenamePtr, *clientRemotefilepath)
-			log.Printf("Put status: %t\n", status)
+			fmt.Printf("==> Put status: %t\n", status)
 			//下载文件，返回操作结果
 		} else if *clientOperationPtr == "get" {
 			getHandler := client.GetHandler(*clientNameNodePortPtr, *clientRemotefilepath, *clientFilenamePtr, *clientLocalfilepath)
-			log.Printf("Get status: %t\n", getHandler)
+			fmt.Printf("==> Get status: %t\n", getHandler)
 			//创建远端目录，返回操作结果
 		} else if *clientOperationPtr == "mkdir" {
 			mkdirHandler := client.MkdirHandler(*clientNameNodePortPtr, *clientRemotefilepath)
-			log.Println(mkdirHandler)
+			fmt.Printf("==> Mkdir status: %t\n", mkdirHandler)
 			// 查看文件元数据：文件名+文件大小，并打印输出，如不存在打印
 		} else if *clientOperationPtr == "stat" {
 			filename, filesize := client.StatHandler(*clientNameNodePortPtr, *clientRemotefilepath, *clientFilenamePtr)
 			if filename == "" {
-				log.Printf("%v :文件不存在\n", *clientFilenamePtr)
+				fmt.Printf("==> %v :File does not exist\n", *clientFilenamePtr)
 			} else {
-				log.Printf("文件名:%v\t文件大小:%v bytes\n", filename, filesize)
+				fmt.Printf("==> FileName:%v\tFileSize:%v bytes\n", filename, filesize)
 			}
 			// 重命名文件目录或者文件名都可以，返回操作结果
 		} else if *clientOperationPtr == "rename" {
@@ -90,21 +90,21 @@ func main() {
 			} else {
 				status = client.ReNameFileHandler(*clientNameNodePortPtr, *renameSrcPath, *renameDestPath)
 			}
-			log.Printf("ReName status: %t\n", status)
+			fmt.Printf("==> ReName status: %t\n", status)
 			//打印指定目录下的文件元数据信息：文件名+文件大小，空目录则显示为空
 		} else if *clientOperationPtr == "list" {
 			fileInfo := client.ListHandler(*clientNameNodePortPtr, *remoteDirPath)
 			for fileName, fileSize := range fileInfo {
-				log.Printf("文件名:%v\t文件大小:%v bytes\n", fileName, fileSize)
+				fmt.Printf("==> FileName:%v\tFileSize:%v bytes\n", fileName, fileSize)
 			}
 			//删除路径以及路径下所有子文件和文件夹，返回操作结果
 		} else if *clientOperationPtr == "deletepath" {
 			status := client.DeletePathHandler(*clientNameNodePortPtr, *clientRemotefilepath)
-			log.Printf("DeletePath status: %t\n", status)
+			fmt.Printf("==> DeletePath status: %t\n", status)
 			//删除指定路径下的指定文件，返回操作结果
 		} else if *clientOperationPtr == "deletefile" {
 			status := client.DeleteFileHandler(*clientNameNodePortPtr, *clientRemotefilepath, *clientFilenamePtr)
-			log.Printf("DeleteFile status: %t\n", status)
+			fmt.Printf("==> DeleteFile status: %t\n", status)
 		}
 	}
 }
