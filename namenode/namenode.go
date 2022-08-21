@@ -382,7 +382,7 @@ func (nameNode *Service) List(request *NameNodeListRequest, reply *[]ListMetaDat
 	return nil
 }
 
-// ReDistributeData 当有dataNode节点dead，将死亡的节点上的数据进行备份，并重新分配节点（主+备）写入
+// ReDistributeData 当有dataNode节点dead，将死亡的节点上的数据进行备份，重新分配备份节点写入
 func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, reply *bool) error {
 	log.Printf("DataNode %s is dead, trying to redistribute data\n", request.DataNodeUri)
 	deadDataNodeSlice := strings.Split(request.DataNodeUri, ":")
@@ -404,7 +404,7 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 	for blockId, dnIds := range nameNode.BlockToDataNodeIds {
 		for i, dnId := range dnIds {
 			//当blockId中的dataNodes匹配上deadDataNodeId时，记录1个备份的DataNodeId作为healthyDataNodeId
-			//并跳出循环，因为一个节点的BlockId损坏指挥匹配一个DataNodeId
+			//并跳出循环，因为一个节点的BlockId损坏只会匹配一个DataNodeId
 			if dnId == deadDataNodeId {
 				//备份的DataNodeId有多个，都存在BlockToDataNodeIds[blockId]，如果是坏的恰好是最后一个就会有问题，所以取余
 				healthyDataNodeId := nameNode.BlockToDataNodeIds[blockId][(i+1)%len(dnIds)]
@@ -422,12 +422,6 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 	if len(nameNode.IdToDataNodes) < int(nameNode.ReplicationFactor) {
 		log.Println("Replication not possible due to unavailability of sufficient DataNode(s)")
 		return nil
-	}
-
-	// 获取当前可用的dataNodesId
-	var availableNodes []uint64
-	for k, _ := range nameNode.IdToDataNodes {
-		availableNodes = append(availableNodes, k)
 	}
 
 	// 遍历需要复制块列表
@@ -476,41 +470,37 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 		// 存放BlockId读取的数据
 		blockContents := getReply.Data
 
-		// 1.删除原存在的这个BlockId数据,因为备份不止一块，所以需要遍历删除
-		ids := nameNode.BlockToDataNodeIds[blockToReplicate.BlockId]
-		for _, dataNodeId := range ids {
-			dataNode := nameNode.IdToDataNodes[dataNodeId]
-			dataNodeInstance, rpcErr := rpc.Dial("tcp", dataNode.Host+":"+dataNode.ServicePort)
-			if rpcErr != nil {
-				continue
-			}
-			defer dataNodeInstance.Close()
-			request := datanode.DataNodeDeleteRequest{
-				RemoteFilepath: remoteFilePath,
-				BlockId:        blockToReplicate.BlockId,
-			}
-			var reply datanode.DataNodeReplyStatus
-			//通过rpc调用DeleteFile
-			rpcErr = dataNodeInstance.Call("Service.DeleteFile", request, &reply)
-			if rpcErr != nil {
-				log.Println(rpcErr)
+		//重新写入数据给节点,更新BlockToDataNodeIds元数据
+		//分配给哪个备份节点，得到目标节点,必须得不在备份的所有节点上
+		var availableNodes []uint64
+		//遍历所有的当前存活的dataNodeId，只有这个Id与所有备份节点的Id不一样时，才说明是可用的节点，加入availableNodes
+		for id, _ := range nameNode.IdToDataNodes {
+			for i, BlockId := range nameNode.BlockToDataNodeIds[blockToReplicate.BlockId] {
+				if id == BlockId {
+					break
+				}
+				if i == len(nameNode.BlockToDataNodeIds[blockToReplicate.BlockId])-1 {
+					availableNodes = append(availableNodes, id)
+				}
 			}
 		}
-
-		//2.删除原存在的这个BlockId数据成功，重新写入数据给节点,更新BlockToDataNodeIds元数据
-		//分配给哪些节点，得到目标节点
-		targetDataNodeIds := nameNode.assignDataNodes(blockToReplicate.BlockId, availableNodes, nameNode.ReplicationFactor)
+		//副本数为1，在availableNodes中取1个随机数，返回的是一个长度为1的slice[]
+		targetDataNodeIds := nameNode.assignDataNodes(blockToReplicate.BlockId, availableNodes, 1)
+		//得到目标存储节点
+		targetDataNodeId := targetDataNodeIds[0]
 		//更新BlockToDataNodeIds元数据，不涉及其他元数据的变更，只是BlockId与dataNodes的映射
-		nameNode.BlockToDataNodeIds[blockToReplicate.BlockId] = targetDataNodeIds
-		var blockAddresses []datanode.DataNodeInstance
-		// 依次生成写入dataNode地址
-		for _, dataNodeId := range targetDataNodeIds {
-			blockAddresses = append(blockAddresses, nameNode.IdToDataNodes[dataNodeId])
+		//删除坏的deadDataNodeId,添加新的targetDataNodeId
+		var newBlockToDataNodeIds []uint64
+		for _, dataNodeId := range nameNode.BlockToDataNodeIds[blockToReplicate.BlockId] {
+			if dataNodeId != deadDataNodeId {
+				newBlockToDataNodeIds = append(newBlockToDataNodeIds, dataNodeId)
+			}
 		}
-		// 主节点
-		startingDataNode := blockAddresses[0]
-		// 剩余备份节点
-		remainingDataNodes := blockAddresses[1:]
+		newBlockToDataNodeIds = append(newBlockToDataNodeIds, targetDataNodeId)
+		nameNode.BlockToDataNodeIds[blockToReplicate.BlockId] = newBlockToDataNodeIds
+
+		//写入节点赋值，remainingDataNodes为空
+		startingDataNode := nameNode.IdToDataNodes[targetDataNodeId]
 
 		targetDataNodeInstance, rpcErr := rpc.Dial("tcp", startingDataNode.Host+":"+startingDataNode.ServicePort)
 		if rpcErr != nil {
@@ -520,10 +510,9 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 		defer targetDataNodeInstance.Close()
 
 		putRequest := datanode.DataNodePutRequest{
-			RemoteFilePath:   remoteFilePath,
-			BlockId:          blockToReplicate.BlockId,
-			Data:             blockContents,
-			ReplicationNodes: remainingDataNodes,
+			RemoteFilePath: remoteFilePath,
+			BlockId:        blockToReplicate.BlockId,
+			Data:           blockContents,
 		}
 		var putReply datanode.DataNodeReplyStatus
 		// 将数据写入对用的节点
