@@ -311,15 +311,21 @@ GoDFS
 
 
 ### 性能测试
-通过命令 go tool pprof -http=:6060 "http://localhost:8080/debug/pprof/profile?seconds=120" 生成了两个版本的火焰图，左图为v1.0，右图为v1.2版本，通过对比两张详细火焰图，优化后的相同方法调用时间更短（添加了相应的中间件）
+通过命令 go tool pprof -http=:8000 "http://localhost:8080/debug/pprof/profile?seconds=10" 生成了的火焰图
 
+#### Put：
 <p align="center">
 <a href="https://github.com/liuzongzhou/GoDFS.git">
-    <img src="images/1.0.png" alt="Logo" width="500" height="300">
-    <img src="images/1.2.png" alt="Logo" width="500" height="300">
+    <img src="images/putprofile.jpg" alt="Logo" width="1000" height="300">
 </a>
 
+#### Get:
+<p align="center">
+<a href="https://github.com/liuzongzhou/GoDFS.git">
+    <img src="images/getprofile.jpg" alt="Logo" width="1000" height="300">
+</a>
 
+仅展示部分接口，更多接口详细参数分析请阅读[性能测试](https://ypbg9olvt2.feishu.cn/docx/doxcncPKu0MQbtWia9Cxmte0cuc)文档。
 
 ### 使用到的技术
 RPC相关：
