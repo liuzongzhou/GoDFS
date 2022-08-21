@@ -485,7 +485,7 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 			}
 		}
 		//副本数为1，在availableNodes中取1个随机数，返回的是一个长度为1的slice[]
-		targetDataNodeIds := nameNode.assignDataNodes(blockToReplicate.BlockId, availableNodes, 1)
+		targetDataNodeIds := selectRandomNumbers(availableNodes, 1)
 		//得到目标存储节点
 		targetDataNodeId := targetDataNodeIds[0]
 		//更新BlockToDataNodeIds元数据，不涉及其他元数据的变更，只是BlockId与dataNodes的映射
@@ -522,7 +522,7 @@ func (nameNode *Service) ReDistributeData(request *ReDistributeDataRequest, repl
 			continue
 		}
 		// 打印重新分配的数据的写入分布情况
-		log.Printf("Block %s replication completed for %+v\n", blockToReplicate.BlockId, targetDataNodeIds)
+		log.Printf("Block %s replication completed for %+v,current distribution is %+v\n", blockToReplicate.BlockId, targetDataNodeIds, newBlockToDataNodeIds)
 	}
 
 	return nil
