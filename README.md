@@ -103,7 +103,7 @@ go build -o godfs.exe main.go
 
 
 #### 演示视频
-[![Watch the video](images/video.png)](http://43.138.25.60/tiktok.mp4)
+[![Watch the video](images/video.png)](https://www.bilibili.com/video/BV1ia41197d3/?vd_source=c2c09eea4ea7693f88030c5023abb455)
 
 #### 命令行使用手册
 注：所有命令均可直接点击左侧绿色箭头直接运行
