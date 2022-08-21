@@ -59,14 +59,14 @@ func MkdirHandler(nameNodeAddress string, remoteFilePath string) bool {
 	return client.Mkdir(rpcClient, remoteFilePath)
 }
 
-func StatHandler(nameNodeAddress string, remote_file_path string, fileName string) (filename string, filesize uint64) {
+func StatHandler(nameNodeAddress string, remoteFilePath string, fileName string) (filename string, filesize uint64) {
 	rpcClient, err := initializeClientUtil(nameNodeAddress)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	defer rpcClient.Close()
-	return client.Stat(rpcClient, remote_file_path, fileName)
+	return client.Stat(rpcClient, remoteFilePath, fileName)
 }
 
 func ReNameHandler(nameNodeAddress string, renameSrcPath string, renameDestPath string) bool {
