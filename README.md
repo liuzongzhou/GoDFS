@@ -280,7 +280,7 @@ GoDFS
 #### DataNode架构的设计
 <p align="center">
   <a href="https://github.com/liuzongzhou/GoDFS.git">
-    <img src="images/DataNode.jpg" alt="Logo" width="1000" height="800">
+    <img src="images/DataNode.png" alt="Logo" width="1000" height="800">
   </a>
 </p>
 
@@ -311,7 +311,7 @@ GoDFS
 
 
 ### 性能测试
-通过命令 go tool pprof -http=:8000 "http://localhost:8080/debug/pprof/profile?seconds=10" 生成了的火焰图
+通过命令 go tool pprof -http=:8000 "http://localhost:8080/debug/pprof/profile?seconds=10" 生成的火焰图
 
 #### Put：
 <p align="center">
@@ -330,7 +330,8 @@ GoDFS
 ### 使用到的技术
 RPC相关：
 - [net/rpc](https://blog.csdn.net/qq_49723651/article/details/121765269)
-
+性能测试：
+- [pprof](https://zhuanlan.zhihu.com/p/396363069)
 ### 未来展望
 #### 元数据Raft实现
 元数据一致性共识模块：Raft协议实现(etcd)
