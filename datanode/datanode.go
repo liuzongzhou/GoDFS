@@ -140,8 +140,9 @@ func (dataNode *Service) PutData(request *DataNodePutRequest, reply *DataNodeRep
 	}
 	fileWriter.Flush()
 	*reply = DataNodeReplyStatus{Status: true}
-	//同步备份节点
-	return dataNode.forwardForReplication(request, reply)
+	//协程：同步备份节点，异步存储
+	go dataNode.forwardForReplication(request, reply)
+	return nil
 }
 
 //GetData 获取blockId对应的数据内容
