@@ -29,6 +29,7 @@
 **Attention:** We always welcome contributors to the project. Before adding your contribution, please carefully read our [Git 分支管理规范](https://ypbg9olvt2.feishu.cn/docs/doccnTMRmh7YgMwL2PgZ5moWUsd)和[注释规范](https://juejin.cn/post/7096881555246678046)。
 
 ## 目录
+- [荣誉展示](#荣誉展示)
 - [上手指南](#上手指南)
     - [开发前的配置要求](#开发前的配置要求)
     - [安装步骤](#安装步骤)
@@ -55,6 +56,12 @@
 - [版本控制](#版本控制)
 - [贡献者](#贡献者)
 - [鸣谢](#鸣谢)
+
+### 荣誉展示
+<a href="https://github.com/liuzongzhou/GoDFS.git">
+    <img src="images/reward1.jpg" alt="Logo" width="1000" height="600">
+    <img src="images/reward2.jpg" alt="Logo" width="800" height="1000">
+</a>
 
 ### 上手指南
 
